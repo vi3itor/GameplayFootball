@@ -1,18 +1,32 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "scoreboard.hpp"
 
-#include "utils/gui2/windowmanager.hpp"
+#include "../../utils/gui2/windowmanager.hpp"
 
-#include <SDL/SDL.h>
+#include "wrap_SDL.h"
 
 #include "../../onthepitch/match.hpp"
 
 using namespace blunted;
 
-Gui2ScoreBoard::Gui2ScoreBoard(Gui2WindowManager *windowManager, Match *match) : Gui2View(windowManager, "scoreboard", 2, 2, 96, 4), match(match) {
+Gui2ScoreBoard::Gui2ScoreBoard(Gui2WindowManager *windowManager, Match *match)
+    : Gui2View(windowManager, "scoreboard", 2, 2, 96, 4) {
   x_percent = 2;
   y_percent = 2;
   width_percent = 96;
@@ -50,7 +64,7 @@ Gui2ScoreBoard::Gui2ScoreBoard(Gui2WindowManager *windowManager, Match *match) :
 
   leagueLogo = new Gui2Image(windowManager, "game_scoreboard_leaguelogo", xOffset[0], 0, height_percent / windowManager->GetAspectRatio(), height_percent);
   this->AddView(leagueLogo);
-  leagueLogo->LoadImage("media/menu/league.png"); // todo: actual league picca
+  leagueLogo->LoadImage("media/menu/league.png");
   leagueLogo->Show();
 
   timeCaption = new Gui2Caption(windowManager, "game_scoreboard_timecaption", xOffset[1] + content_xOffset, 0, 5, height_percent * 0.9f, "0:00");
@@ -69,11 +83,6 @@ Gui2ScoreBoard::Gui2ScoreBoard(Gui2WindowManager *windowManager, Match *match) :
   goalCountCaption[0]->SetOutlineColor(textOutlineColor);
   goalCountCaption[1]->SetColor(textColor);
   goalCountCaption[1]->SetOutlineColor(textOutlineColor);
-
-  tvLogo = new Gui2Image(windowManager, "game_scoreboard_tvlogo", width_percent - (height_percent * 2.0f) / windowManager->GetAspectRatio(), 0, (height_percent * 2.0f) / windowManager->GetAspectRatio(), height_percent);
-  this->AddView(tvLogo);
-  tvLogo->LoadImage("media/menu/tvlogo.png");
-  tvLogo->Show();
 
   this->AddView(timeCaption);
   timeCaption->Show();

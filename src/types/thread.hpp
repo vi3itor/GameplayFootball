@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,10 +18,10 @@
 #ifndef _HPP_THREAD
 #define _HPP_THREAD
 
-#include "defines.hpp"
+#include "../defines.hpp"
 
-#include "types/messagequeue.hpp"
-#include "types/lockable.hpp"
+#include "../types/messagequeue.hpp"
+#include "../types/lockable.hpp"
 
 #include "boost/thread.hpp"
 
@@ -30,43 +43,11 @@ namespace blunted {
       virtual ~Thread() {
       }
 
-      e_ThreadState GetState() { // ATOMIC
-        state.Lock();
-        e_ThreadState curstate = state.data;
-        state.Unlock();
-        return curstate;
-      }
-
-      void SetState(e_ThreadState newState) { // ATOMIC
-        state.Lock();
-        state.data = newState;
-        state.Unlock();
-      }
-
-
-      // --- USE WITH CARE: USER LOCKING RESPONSIBILITY
-
-      void LockState() {
-        state.Lock();
-      }
-
-      e_ThreadState GetState_NoLock() {
-        return state.data;
-      }
-
-      void SetState_NoLock(e_ThreadState newState) {
-        state.data = newState;
-      }
-
-      void UnlockState() {
-        state.Unlock();
-      }
-
       // --- /CARE
 
 
       void Run() {
-        thread = boost::thread(boost::ref( *this ));
+        operator()();
       }
 
       void Join() {
@@ -76,7 +57,7 @@ namespace blunted {
       // thread main loop
       virtual void operator()() = 0;
 
-      MessageQueue < boost::intrusive_ptr<Command> > messageQueue;
+      //MessageQueue < boost::intrusive_ptr<Command> > messageQueue;
 
       boost::thread thread;
 

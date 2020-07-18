@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -6,7 +19,7 @@
 
 #include "../../main.hpp"
 
-#include "utils/database.hpp"
+#include "../../utils/database.hpp"
 
 #include "../pagefactory.hpp"
 
@@ -181,14 +194,8 @@ void TeamSelectPage::SetupTeamSelect2() {
 
 void TeamSelectPage::GoOptionsMenu() {
   GetMenuTask()->SetTeamIDs(teamSelect1->GetSelectedEntryID(), teamSelect2->GetSelectedEntryID());
-  //printf("teams: %i vs %i\n", atoi(teamSelect1->GetSelectedEntryID().c_str()), atoi(teamSelect2->GetSelectedEntryID().c_str()));
-
-  this->Exit();
-
   Properties properties;
   windowManager->GetPageFactory()->CreatePage((int)e_PageID_MatchOptions, properties, 0);
-
-  delete this;
 }
 
 void TeamSelectPage::ProcessWindowingEvent(WindowingEvent *event) {

@@ -1,8 +1,22 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "default_mid.hpp"
+#include <cmath>
 
 #include "../../../../../main.hpp"
 
@@ -41,7 +55,12 @@ void DefaultMidfieldStrategy::RequestInput(const MentalImage *mentalImage, Vecto
   if (defensiveComponents) {
 
     float mindset = AI_GetMindSet(CastPlayer()->GetDynamicFormationEntry().role);
-    controller->AddDefensiveComponent(desiredPosition, pow(clamp(1.5f - mindset - controller->GetFadingTeamPossessionAmount(), 0.0f, 1.0f), 0.7f));
+    controller->AddDefensiveComponent(
+        desiredPosition,
+        std::pow(
+            clamp(1.5f - mindset - controller->GetFadingTeamPossessionAmount(),
+                  0.0f, 1.0f),
+            0.7f));
 
     // offside trap (used to be applied before AddDefensiveComponent)
     team->GetController()->ApplyOffsideTrap(desiredPosition);

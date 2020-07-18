@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -11,16 +24,15 @@
 #include "mainmenu.hpp"
 #include "ingame/ingame.hpp"
 #include "visualoptions.hpp"
-#include "ingame/replaymenu.hpp"
 #include "ingame/phasemenu.hpp"
 #include "ingame/gameover.hpp"
 
-#include "gametask.hpp"
+#include "../gametask.hpp"
 
-#include "main.hpp"
+#include "../main.hpp"
 
-#include "framework/scheduler.hpp"
-#include "managers/resourcemanagerpool.hpp"
+#include "../framework/scheduler.hpp"
+#include "../managers/resourcemanagerpool.hpp"
 
 using namespace blunted;
 
@@ -51,7 +63,7 @@ void SetActiveController(int side, bool keyboard) {
   }
 }
 
-MenuTask::MenuTask(float aspectRatio, float margin, TTF_Font *defaultFont, TTF_Font *defaultOutlineFont) : Gui2Task(GetScene2D(), aspectRatio, margin) {
+MenuTask::MenuTask(float aspectRatio, float margin, TTF_Font *defaultFont, TTF_Font *defaultOutlineFont, const Properties* config) : Gui2Task(GetScene2D(), aspectRatio, margin), config_(config) {
 
   Gui2Style *style = windowManager->GetStyle();
 
@@ -96,14 +108,17 @@ MenuTask::MenuTask(float aspectRatio, float margin, TTF_Font *defaultFont, TTF_F
   } else {
 
     int size = GetControllers().size();
+
     for (int i = 0; i < size; i++) {
       SideSelection side;
       side.controllerID = i;
-      if ((size > 1 && i == 1) || (size == 1 && i == 0)) {
-        side.side = -1;
-      } else {
-        side.side = 0;
-      }
+      // Everybody plays in the same team.
+      side.side = -1;
+//      if ((size > 1 && i == 1) || (size == 1 && i == 0)) {
+//        side.side = -1;
+//      } else {
+//        side.side = 0;
+//      }
       queuedFixture->sides.push_back(side);
     }
 
@@ -167,6 +182,9 @@ void MenuTask::ProcessPhase() {
 }
 
 bool MenuTask::QuickStart() {
+  if (config_->GetBool("quick_start", false)) {
+    return true;
+  }
   return !IsReleaseVersion() && EnvironmentManager::GetInstance().GetTime_ms() < 10000; // after 5 seconds, quickstart disabled (== after > 0 matches have been played)
 }
 

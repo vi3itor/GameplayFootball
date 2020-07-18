@@ -1,14 +1,27 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "geometry.hpp"
 
-#include "base/log.hpp"
+#include "../../base/log.hpp"
 
-#include "systems/isystemobject.hpp"
+#include "../../systems/isystemobject.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
+#include "../../managers/resourcemanagerpool.hpp"
 
 namespace blunted {
 
@@ -17,14 +30,12 @@ namespace blunted {
 
   Geometry::Geometry(const Geometry &src, const std::string &postfix) : Object(src) {
     if (src.geometryData != boost::intrusive_ptr < Resource<GeometryData> >()) {
-      src.geometryData->resourceMutex.lock();
       std::string srcName = src.geometryData->GetIdentString();
-      src.geometryData->resourceMutex.unlock();
       bool alreadyThere = false;
 
-      // todo: make selectable if we want to deep copy or not
-      geometryData = (ResourceManagerPool::GetInstance().GetManager<GeometryData>(e_ResourceType_GeometryData)->FetchCopy(srcName, srcName + postfix, alreadyThere));
-      //geometryData = (ResourceManagerPool::GetInstance().GetManager<GeometryData>(e_ResourceType_GeometryData)->Fetch(srcName, false, alreadyThere, true));
+
+      geometryData = (ResourceManagerPool::getGeometryManager()->FetchCopy(srcName, srcName + postfix, alreadyThere));
+      //geometryData = (ResourceManagerPool::getGeometryManager()->Fetch(srcName, false, alreadyThere, true));
     }
     InvalidateBoundingVolume();
   }
@@ -33,7 +44,6 @@ namespace blunted {
   }
 
   void Geometry::Exit() { // ATOMIC
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -45,15 +55,13 @@ namespace blunted {
 
     if (geometryData) geometryData.reset();
 
-    subjectMutex.unlock();
 
     InvalidateBoundingVolume();
   }
 
   void Geometry::SetGeometryData(boost::intrusive_ptr < Resource<GeometryData> > geometryData) {
-    subjectMutex.lock();
 
-    // todo: check if already pointing to existing data and maybe delete?
+
     this->geometryData = geometryData;
 
     int observersSize = observers.size();
@@ -62,13 +70,11 @@ namespace blunted {
       geometryInterpreter->OnLoad(this);
     }
 
-    subjectMutex.unlock();
 
     InvalidateBoundingVolume();
   }
 
   void Geometry::OnUpdateGeometryData(bool updateMaterials) {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -76,7 +82,6 @@ namespace blunted {
       geometryInterpreter->OnUpdateGeometry(this, updateMaterials);
     }
 
-    subjectMutex.unlock();
 
     InvalidateBoundingVolume();
   }
@@ -86,20 +91,18 @@ namespace blunted {
   }
 
   void Geometry::Poke(e_SystemType targetSystemType) {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
-      // todo: cache the interpreters?
+
       IGeometryInterpreter *geometryInterpreter = static_cast<IGeometryInterpreter*>(observers.at(i).get());
       if (geometryInterpreter->GetSystemType() == targetSystemType) geometryInterpreter->OnPoke();
     }
 
-    subjectMutex.unlock();
 
     // did a system object feedback a new pos/rot?
     updateSpatialDataAfterPoke.Lock();
-    // todo: does this work when multiple systems want to exclude themselves? i guess not.. make it (excludes) an array?
+
     if (updateSpatialDataAfterPoke.data.haveTo == true) {
       RecursiveUpdateSpatialData(e_SpatialDataType_Both, updateSpatialDataAfterPoke.data.excludeSystem);
       MustUpdateSpatialData clear;
@@ -115,7 +118,6 @@ namespace blunted {
     InvalidateSpatialData();
     InvalidateBoundingVolume();
 
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -137,32 +139,28 @@ namespace blunted {
       }
     }
 
-    subjectMutex.unlock();
 
     //Object::RecursiveUpdateSpatialData(spatialDataType);
   }
 
   AABB Geometry::GetAABB() const {
 
-    aabb.Lock();
+    //aabb.Lock();
 
-    if (aabb.data.dirty == true) {
-      geometryData->resourceMutex.lock();
+    if (aabb.dirty == true) {
       assert(geometryData->GetResource());
-      aabb.data.aabb = geometryData->GetResource()->GetAABB() * GetDerivedRotation() + GetDerivedPosition();
-      geometryData->resourceMutex.unlock();
-      aabb.data.dirty = false;
+      aabb.aabb = geometryData->GetResource()->GetAABB() * GetDerivedRotation() + GetDerivedPosition();
+      aabb.dirty = false;
     }
 
-    AABB tmp = aabb.data.aabb;
+    AABB tmp = aabb.aabb;
 
-    aabb.Unlock();
+    //aabb.Unlock();
 
     return tmp;
   }
 
   void Geometry::ApplyForceAtRelativePosition(float force, const Vector3 &direction, const Vector3 &position) {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -170,7 +168,6 @@ namespace blunted {
       geometryInterpreter->ApplyForceAtRelativePosition(force, direction, position);
     }
 
-    subjectMutex.unlock();
   }
 
 }

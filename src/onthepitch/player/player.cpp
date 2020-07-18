@@ -1,8 +1,23 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "player.hpp"
+
+#include <cmath>
 
 #include "../match.hpp"
 #include "../team.hpp"
@@ -13,9 +28,7 @@
 #include "../../main.hpp"
 #include "../../utils.hpp"
 
-#include "base/geometry/triangle.hpp"
-
-#include "libs/fastapprox.h"
+#include "../../base/geometry/triangle.hpp"
 
 Player::Player(Team *team, PlayerData *playerData) : PlayerBase(team->GetMatch(), playerData), team(team) {
   menuTask = GetMenuTask();
@@ -66,7 +79,7 @@ Team *Player::GetTeam() {
   return team;
 }
 
-void Player::Activate(boost::intrusive_ptr<Node> humanoidSourceNode, boost::intrusive_ptr<Node> fullbodySourceNode, std::map<Vector3, Vector3> &colorCoords, boost::intrusive_ptr < Resource<Surface> > kit, boost::shared_ptr<AnimCollection> animCollection) {
+void Player::Activate(boost::intrusive_ptr<Node> humanoidSourceNode, boost::intrusive_ptr<Node> fullbodySourceNode, std::map<Vector3, Vector3> &colorCoords, boost::intrusive_ptr < Resource<Surface> > kit, boost::shared_ptr<AnimCollection> animCollection, bool lazyPlayer) {
 
   assert(!isActive);
 
@@ -74,7 +87,7 @@ void Player::Activate(boost::intrusive_ptr<Node> humanoidSourceNode, boost::intr
 
   humanoid = new Humanoid(this, humanoidSourceNode, fullbodySourceNode, colorCoords, animCollection, GetTeam()->GetSceneNode(), kit, GetTeam()->GetID());
 
-  controller = new ElizaController(match);
+  controller = new ElizaController(match, lazyPlayer);
   CastController()->SetPlayer(this);
   CastController()->LoadStrategies();
 
@@ -151,10 +164,16 @@ void Player::UpdatePossessionStats(bool onInterval) {
 
   if (!onInterval) return;
 
-  timeNeededToGetToBall_previous_ms = timeNeededToGetToBall_ms; // todo: this will fail to function as intended when this function is ran multiple times consecutively
+  timeNeededToGetToBall_previous_ms = timeNeededToGetToBall_ms;
 
   // default
-  timeNeededToGetToBall_ms = std::max(ballPredictionSize_ms, (unsigned int)(round((match->GetBall()->Predict(ballPredictionSize_ms - 10).Get2D() - (GetPosition() + GetMovement() * 0.2f)).GetLength() / (GetMaxVelocity() * 0.75f) * 1000)));
+  timeNeededToGetToBall_ms = std::max(
+      ballPredictionSize_ms,
+      (unsigned int)(std::round(
+          (match->GetBall()->Predict(ballPredictionSize_ms - 10).Get2D() -
+           (GetPosition() + GetMovement() * 0.2f))
+              .GetLength() /
+          (GetMaxVelocity() * 0.75f) * 1000)));
   timeNeededToGetToBall_optimistic_ms = timeNeededToGetToBall_ms;
 
   unsigned int startTime_ms = 0;
@@ -230,10 +249,11 @@ void Player::UpdatePossessionStats(bool onInterval) {
       float balldist = (GetPosition() - match->GetBall()->Predict(ms).Get2D()).GetLength() + 0.2f; // add a little buffer
       float maxBallVelo = 50;
       // how long does it take for the ball at max velo to travel balldist?
-      unsigned int timeToGo_ms = int(round((balldist / maxBallVelo) * 1000.0f));
+      unsigned int timeToGo_ms =
+          int(std::round((balldist / maxBallVelo) * 1000.0f));
       timeStep_ms = clamp(timeToGo_ms, 10, 500);
       // round to 10s
-      timeStep_ms = int(floor(timeStep_ms / 10.0f)) * 10;
+      timeStep_ms = int(std::floor(timeStep_ms / 10.0f)) * 10;
     } else timeStep_ms = 10;
 
     previous_ms = ms;
@@ -256,12 +276,12 @@ void Player::UpdatePossessionStats(bool onInterval) {
        CastHumanoid()->GetCurrentFunctionType() == e_FunctionType_HighPass ||
        CastHumanoid()->GetCurrentFunctionType() == e_FunctionType_Shot) && !TouchPending()) {
     hasPossession = false;
-  } else { // todo: shouldn't this be somewhere else?
+  } else {
     hasPossession = AI_HasPossession(match->GetBall(), this);
   }
 
   this->hasBestPossession = hasPossession && match->GetTeam(abs(team->GetID() - 1))->GetTimeNeededToGetToBall_ms() > this->GetTimeNeededToGetToBall_ms();
-  this->hasUniquePossession = hasPossession && !match->GetTeam(abs(team->GetID() - 1))->HasPossession(); // todo: this should be in a seperate function, to be called after the other team's timetoball function already ran.
+  this->hasUniquePossession = hasPossession && !match->GetTeam(abs(team->GetID() - 1))->HasPossession();
 
   if (match->GetBallRetainer() == this) {
     timeNeededToGetToBall_ms = 1;
@@ -299,7 +319,7 @@ void Player::Process() {
         //if (GetDebug()) printf("average velo (5): %f, (50): %f\n", GetAverageVelocity(5), GetAverageVelocity(50));
       }
       if (hasPossession) possessionDuration_ms += 10; else possessionDuration_ms = 0;
-      if ((match->GetActualTime_ms() + GetID() * 10) % 100 == 0) {
+      if ((match->GetActualTime_ms() + GetStableID() * 10) % 100 == 0) {
         _CalculateTacticalSituation();
       }
     }
@@ -315,7 +335,9 @@ void Player::Process() {
     fatigueFactorInv = clamp(fatigueFactorInv, 0.01f, 1.0f);
     //if (GetDebug() && match->GetActualTime_ms() % 1000 == 0) printf("fatigue: %f\n", GetFatigueFactorInv());
 
-    if (cards > 1 && cardEffectiveTime_ms <= match->GetActualTime_ms()) {
+    // Don't send off the last player on the team.
+    if (cards > 1 && cardEffectiveTime_ms <= match->GetActualTime_ms()
+        && GetTeam()->GetActivePlayersCount() > 1) {
       SendOff();
     }
 
@@ -374,7 +396,9 @@ void Player::PreparePutBuffers(unsigned long snapshotTime_ms) {
       //buf_nameCaption += " X";
     } else if (static_cast<HumanController*>(GetExternalController())->GetActionMode() == 2) {
       //buf_nameCaption += " !";
-      buf_playerColor = buf_playerColor * (sin(match->GetActualTime_ms() * 0.02f) * 0.3f + 0.7f);
+      buf_playerColor =
+          buf_playerColor *
+          (std::sin(match->GetActualTime_ms() * 0.02f) * 0.3f + 0.7f);
     }
 
     //if (hasPossession) buf_nameCaption.append(" P");
@@ -495,12 +519,12 @@ void Player::SendOff() {
 
   std::vector<Player*> activePlayers;
   team->GetActivePlayers(activePlayers);
-  int remainingPlayers = activePlayers.size();
-  if (remainingPlayers <= 6) {
+
+  // For simplicity don't forfeit for now.
+  // int remainingPlayers = activePlayers.size();
+  // if (remainingPlayers <= 6) {
     // too many red cards - forfeit
-    // todo: referee should do this. also, make sure the forfeiting team will actually lose :P
-    match->GameOver();
-  }
+
 }
 
 float Player::GetStaminaStat() const {
@@ -514,9 +538,7 @@ float Player::GetStat(const char *name) const {
   float multiplier = 1.0f;
   //if (team->GetID() == 0) multiplier = 0.5f; else multiplier = 1.0f;
   if (team->GetHumanGamerCount() == 0) multiplier = 0.3f + 0.7f * team->GetMatch()->GetMatchDifficulty();
-  multiplier *= 0.7f + 0.3f * GetFatigueFactorInv(); // todo: some stats are more affected by fatigue than others
-  //if (GetExternalController()) printf("stat %s: %f\n", name, playerData->GetStat(name));
-  //if (GetDebug()) printf("stat %s == %f\n", name, playerData->GetStat(name) * multiplier);
+  multiplier *= 0.7f + 0.3f * GetFatigueFactorInv();
 
   if (playerData->GetStat(name) == 0.0f) printf("NULLSTAT: name: %s\n", name);
   //printf("stat %s: %f * %f\n", name, playerData->GetStat(name), multiplier);
@@ -560,5 +582,7 @@ void Player::_CalculateTacticalSituation() {
 
   // distance to opponent goal 0 .. 1 == farthest .. closest
   tacticalSituation.forwardRating = 1.0f - clamp((Vector3(pitchHalfW * -team->GetSide(), 0, 0) - GetPosition()).GetLength() / (pitchHalfW * 2.0f), 0.0f, 1.0f);
-  tacticalSituation.forwardRating = pow(tacticalSituation.forwardRating, 1.5f); // more important when close to goal
+  tacticalSituation.forwardRating =
+      std::pow(tacticalSituation.forwardRating,
+               1.5f);  // more important when close to goal
 }

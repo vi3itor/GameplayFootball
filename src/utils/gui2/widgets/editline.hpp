@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -19,8 +32,6 @@ namespace blunted {
 
       virtual void GetImages(std::vector < boost::intrusive_ptr<Image2D> > &target);
 
-      void SetColor(const Vector3 &color);
-      void SetOutlineColor(const Vector3 &outlineColor);
       void SetText(const std::string &newText);
       std::string GetText() { return currentText; }
       void SetMaxLength(int length) { maxLength = length; }
@@ -32,10 +43,10 @@ namespace blunted {
       virtual void OnLoseFocus();
       virtual void ProcessKeyboardEvent(KeyboardEvent *event);
 
-      boost::signals2::signal<void(Gui2EditLine*)> sig_OnEnter;
-      boost::signals2::signal<void(Gui2EditLine*)> sig_OnGainFocus;
-      boost::signals2::signal<void(Gui2EditLine*)> sig_OnLoseFocus;
-      boost::signals2::signal<void(Gui2EditLine*)> sig_OnChange;
+      boost::signal<void(Gui2EditLine*)> sig_OnEnter;
+      boost::signal<void(Gui2EditLine*)> sig_OnGainFocus;
+      boost::signal<void(Gui2EditLine*)> sig_OnLoseFocus;
+      boost::signal<void(Gui2EditLine*)> sig_OnChange;
 
     protected:
       Gui2Caption *caption;
@@ -43,12 +54,11 @@ namespace blunted {
 
       std::string currentText;
       std::string allowedChars;
-      unsigned int maxLength;
+      unsigned int maxLength = 0;
       Vector3 color;
       Vector3 outlineColor;
-      float textWidth_percent;
 
-      int cursorPos;
+      int cursorPos = 0;
 
   };
 

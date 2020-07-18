@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /* coherent noise function over 1, 2 or 3 dimensions */
 /* (copyright Ken Perlin) */
 
@@ -5,9 +18,11 @@
 #include <stdio.h>
 #include <math.h>
 
+#include <cmath>
+
 #include "perlin.h"
 
-#include "base/math/bluntmath.hpp"
+#include "../base/math/bluntmath.hpp"
 
 using namespace blunted;
 
@@ -27,30 +42,6 @@ using namespace blunted;
 	b1 = (b0+1) & BM;\
 	r0 = t - (int)t;\
 	r1 = r0 - 1.0f;
-
-float Perlin::noise1(float arg)
-{
-	int bx0, bx1;
-	float rx0, rx1, sx, t, u, v, vec[1];
-
-	vec[0] = arg;
-
-	if (mStart)
-  {
-    srand(mSeed);
-		mStart = false;
-		init();
-	}
-
-	setup(0, bx0,bx1, rx0,rx1);
-
-	sx = s_curve(rx0);
-
-	u = rx0 * g1[ p[ bx0 ] ];
-	v = rx1 * g1[ p[ bx1 ] ];
-
-	return lerp(sx, u, v);
-}
 
 float Perlin::noise2(float vec[2])
 {
@@ -96,79 +87,25 @@ float Perlin::noise2(float vec[2])
 	return lerp(sy, a, b);
 }
 
-float Perlin::noise3(float vec[3])
-{
-	int bx0, bx1, by0, by1, bz0, bz1, b00, b10, b01, b11;
-	float rx0, rx1, ry0, ry1, rz0, rz1, *q, sy, sz, a, b, c, d, t, u, v;
-	int i, j;
-
-	if (mStart)
-  {
-    srand(mSeed);
-		mStart = false;
-		init();
-	}
-
-	setup(0, bx0,bx1, rx0,rx1);
-	setup(1, by0,by1, ry0,ry1);
-	setup(2, bz0,bz1, rz0,rz1);
-
-	i = p[ bx0 ];
-	j = p[ bx1 ];
-
-	b00 = p[ i + by0 ];
-	b10 = p[ j + by0 ];
-	b01 = p[ i + by1 ];
-	b11 = p[ j + by1 ];
-
-	t  = s_curve(rx0);
-	sy = s_curve(ry0);
-	sz = s_curve(rz0);
-
-  #define at3(rx,ry,rz) ( rx * q[0] + ry * q[1] + rz * q[2] )
-
-	q = g3[ b00 + bz0 ] ; u = at3(rx0,ry0,rz0);
-	q = g3[ b10 + bz0 ] ; v = at3(rx1,ry0,rz0);
-	a = lerp(t, u, v);
-
-	q = g3[ b01 + bz0 ] ; u = at3(rx0,ry1,rz0);
-	q = g3[ b11 + bz0 ] ; v = at3(rx1,ry1,rz0);
-	b = lerp(t, u, v);
-
-	c = lerp(sy, a, b);
-
-	q = g3[ b00 + bz1 ] ; u = at3(rx0,ry0,rz1);
-	q = g3[ b10 + bz1 ] ; v = at3(rx1,ry0,rz1);
-	a = lerp(t, u, v);
-
-	q = g3[ b01 + bz1 ] ; u = at3(rx0,ry1,rz1);
-	q = g3[ b11 + bz1 ] ; v = at3(rx1,ry1,rz1);
-	b = lerp(t, u, v);
-
-	d = lerp(sy, a, b);
-
-	return lerp(sz, c, d);
-}
-
 void Perlin::normalize2(float v[2])
 {
-	float s;
+	float s = 0.0f;
 
-	s = (float)sqrt(v[0] * v[0] + v[1] * v[1]);
-  s = 1.0f/s;
-	v[0] = v[0] * s;
-	v[1] = v[1] * s;
+        s = (float)std::sqrt(v[0] * v[0] + v[1] * v[1]);
+        s = 1.0f / s;
+        v[0] = v[0] * s;
+        v[1] = v[1] * s;
 }
 
 void Perlin::normalize3(float v[3])
 {
-	float s;
+	float s = 0.0f;
 
-	s = (float)sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-  s = 1.0f/s;
+        s = (float)std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        s = 1.0f / s;
 
-	v[0] = v[0] * s;
-	v[1] = v[1] * s;
+        v[0] = v[0] * s;
+        v[1] = v[1] * s;
 	v[2] = v[2] * s;
 }
 
@@ -211,7 +148,7 @@ void Perlin::init(void)
 float Perlin::perlin_noise_2D(float vec[2])
 {
   int terms    = mOctaves;
-	float freq   = mFrequency;
+	//float freq   = mFrequency;
 	float result = 0.0f;
   float amp = mAmplitude;
 

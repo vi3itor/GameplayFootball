@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,11 +18,9 @@
 #ifndef _HPP_FOOTBALL_ONTHEPITCH_BALL
 #define _HPP_FOOTBALL_ONTHEPITCH_BALL
 
-#include "defines.hpp"
-#include "scene/scene3d/scene3d.hpp"
-#include "scene/objects/geometry.hpp"
-
-#include "scene/objects/sound.hpp"
+#include "../defines.hpp"
+#include "../scene/scene3d/scene3d.hpp"
+#include "../scene/objects/geometry.hpp"
 
 #include "../gamedefines.hpp"
 #include "../utils.hpp"
@@ -45,18 +56,16 @@ class Ball {
 
     void GetPredictionArray(Vector3 *target);
     Vector3 GetMovement();
+    Vector3 GetRotation();
     void Touch(const Vector3 &target);
     void SetPosition(const Vector3 &target);
     void SetMomentum(const Vector3 &target);
-    void SetRotation(radian x, radian y, radian z, float bias = 1.0); // radians per second for each axis
-    void SetRotation(const Vector3 &rot, float bias = 1.0); // radians per second for each axis
-    BallSpatialInfo CalculatePrediction(); // returns momentum in 10ms
-    Vector3 GetPositionBuffer() { return buf_positionBuffer.GetValue(EnvironmentManager::GetInstance().GetTime_ms()); }
+    void SetRotation(radian x, radian y, radian z,
+                     float bias = 1.0);     // radians per second for each axis
+    BallSpatialInfo CalculatePrediction();  // returns momentum in 10ms
 
     bool BallTouchesNet() { return ballTouchesNet; }
     Vector3 GetAveragePosition(unsigned int duration_ms) const;
-
-    void TriggerBallTouchSound(float gain);
 
     void Process();
     void PreparePutBuffers(unsigned long snapshotTime_ms);
@@ -70,8 +79,6 @@ class Ball {
 
     boost::intrusive_ptr<Node> ballNode;
     boost::intrusive_ptr<Geometry> ball;
-    boost::intrusive_ptr<Sound> sound;
-    boost::intrusive_ptr<Sound> goalpostsound;
 
     Vector3 momentum;
     Quaternion rotation_ms;
@@ -93,15 +100,15 @@ class Ball {
 
     Match *match;
 
-    float bounce;
-    float linearBounce;
-    float drag;
-    float friction;
-    float linearFriction;
-    float gravity;
-    float grassHeight;
+    float bounce = 0.0f;
+    float linearBounce = 0.0f;
+    float drag = 0.0f;
+    float friction = 0.0f;
+    float linearFriction = 0.0f;
+    float gravity = 0.0f;
+    float grassHeight = 0.0f;
 
-    bool ballTouchesNet;
+    bool ballTouchesNet = false;
 
 };
 

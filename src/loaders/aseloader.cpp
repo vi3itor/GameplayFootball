@@ -1,15 +1,28 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "aseloader.hpp"
 
-#include "base/log.hpp"
-#include "base/math/bluntmath.hpp"
-#include "base/math/matrix3.hpp"
-#include "base/geometry/trianglemeshutils.hpp"
-#include "base/geometry/triangle.hpp"
-#include "managers/resourcemanagerpool.hpp"
+#include "../base/log.hpp"
+#include "../base/math/bluntmath.hpp"
+#include "../base/math/matrix3.hpp"
+#include "../base/geometry/trianglemeshutils.hpp"
+#include "../base/geometry/triangle.hpp"
+#include "../managers/resourcemanagerpool.hpp"
 
 #include <fstream>
 
@@ -348,22 +361,22 @@ namespace blunted {
       matname.assign("standard material");
 
     } else {
-      // todo: path in matname
+
 
       // use texture filename as material name
       matname.assign(materialList.at(material_reference).maps[0]);
-      material.diffuseTexture = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(matname, true, true);
+      material.diffuseTexture = ResourceManagerPool::getSurfaceManager()->Fetch(matname, true, true);
       matname.assign(materialList.at(material_reference).maps[1]);
       if (matname.length() > 0) {
-        material.normalTexture = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(matname, true, true);
+        material.normalTexture = ResourceManagerPool::getSurfaceManager()->Fetch(matname, true, true);
       }
       matname.assign(materialList.at(material_reference).maps[2]);
       if (matname.length() > 0) {
-        material.specularTexture = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(matname, true, true);
+        material.specularTexture = ResourceManagerPool::getSurfaceManager()->Fetch(matname, true, true);
       }
       matname.assign(materialList.at(material_reference).maps[3]);
       if (matname.length() > 0) {
-        material.illuminationTexture = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(matname, true, true);
+        material.illuminationTexture = ResourceManagerPool::getSurfaceManager()->Fetch(matname, true, true);
       }
 
       material.shininess = atof(materialList.at(material_reference).shininess.c_str());
@@ -372,11 +385,8 @@ namespace blunted {
 
     }
 
-    resource->resourceMutex.lock();
     std::vector<unsigned int> indices;
     resource->GetResource()->AddTriangleMesh(material, rawTriangleMesh, tmeshsize, indices);
-    resource->resourceMutex.unlock();
-
   }
 
 }

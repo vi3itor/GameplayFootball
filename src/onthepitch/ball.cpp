@@ -1,20 +1,31 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "ball.hpp"
 
-#include "utils/objectloader.hpp"
-#include "scene/objectfactory.hpp"
+#include <cmath>
 
-#include "managers/usereventmanager.hpp"
-#include "managers/resourcemanagerpool.hpp"
+#include "../utils/objectloader.hpp"
+#include "../scene/objectfactory.hpp"
 
-#include "scene/resources/soundbuffer.hpp"
+#include "../managers/usereventmanager.hpp"
+#include "../managers/resourcemanagerpool.hpp"
 
 #include "match.hpp"
-
-#include "libs/fastapprox.h"
 
 #include "../main.hpp"
 
@@ -42,41 +53,11 @@ Ball::Ball(Match *match) : match(match) {
   ballNode->GetObjects<Geometry>(e_ObjectType_Geometry, children);
   ball = (*children.begin());
 
-
-  Log(e_Notice, "Ball", "Ball", "Loading ball sounds");
-
-
-  // ball sound
-
-  boost::intrusive_ptr < Resource<SoundBuffer> > soundBufferRes = ResourceManagerPool::GetInstance().GetManager<SoundBuffer>(e_ResourceType_SoundBuffer)->Fetch("media/sounds/ballsound.wav", true, true);
-  sound = boost::static_pointer_cast<Sound>(ObjectFactory::GetInstance().CreateObject("ballsound", e_ObjectType_Sound));
-  scene3D->CreateSystemObjects(sound);
-  sound->SetSoundBuffer(soundBufferRes);
-  sound->SetGain(0.7f * GetConfiguration()->GetReal("audio_volume", 0.5f));
-  sound->SetLoop(false);
-  scene3D->AddObject(sound);
-
-
-  // goal post sound
-
-  soundBufferRes = ResourceManagerPool::GetInstance().GetManager<SoundBuffer>(e_ResourceType_SoundBuffer)->Fetch("media/sounds/goalpost.wav", true, true);
-  goalpostsound = boost::static_pointer_cast<Sound>(ObjectFactory::GetInstance().CreateObject("goalpostsound", e_ObjectType_Sound));
-  scene3D->CreateSystemObjects(goalpostsound);
-  goalpostsound->SetSoundBuffer(soundBufferRes);
-  goalpostsound->SetGain(0.7f * GetConfiguration()->GetReal("audio_volume", 0.5f));
-  goalpostsound->SetLoop(false);
-  scene3D->AddObject(goalpostsound);
-
-
   CalculatePrediction();
 }
 
 Ball::~Ball() {
   match->GetDynamicNode()->DeleteNode(ballNode);
-  scene3D->DeleteObject(sound);
-  scene3D->DeleteObject(goalpostsound);
-  sound.reset();
-  goalpostsound.reset();
 }
 
 void Ball::GetPredictionArray(Vector3 *target) {
@@ -86,6 +67,12 @@ void Ball::GetPredictionArray(Vector3 *target) {
 Vector3 Ball::GetMovement() {
   // meters / sec
   return momentum;
+}
+
+Vector3 Ball::GetRotation() {
+  radian x, y, z;
+  rotation_ms.GetAngles(x, y, z);
+  return Vector3(x, y, z);
 }
 
 void Ball::Touch(const Vector3 &target) {
@@ -128,10 +115,6 @@ void Ball::SetRotation(radian x, radian y, radian z, float bias) { // radians pe
   rotation_ms = rotation_ms.GetSlerped(bias, tmpRotation_ms);
 
   CalculatePrediction();
-}
-
-void Ball::SetRotation(const Vector3 &rot, float bias) { // radians per second for each axis
-  SetRotation(rot.coords[0], rot.coords[1], rot.coords[2], bias);
 }
 
 BallSpatialInfo Ball::CalculatePrediction() {
@@ -178,16 +161,18 @@ BallSpatialInfo Ball::CalculatePrediction() {
     // air resistance
 
     float momentumVelo = momentumPredict.GetLength();
-    float momentumVeloDragged = momentumVelo - drag * pow(momentumVelo, 2.0f) * timeStep;
+    float momentumVeloDragged =
+        momentumVelo - drag * std::pow(momentumVelo, 2.0f) * timeStep;
     if (drag_enabled) momentumPredict = momentumPredict.GetNormalized(0) * momentumVeloDragged;
 
 
     float ballBottom = nextPos.coords[2] - 0.11f;
     float grassInfluenceBias = clamp(1.0f - (ballBottom / grassHeight), 0.0f, 1.0f); // 0 == no friction, 1 == all friction
-    // todo: seems to cause 'feedback' on multibump (1st bump: ball gets lots of rotation. second bump: rotation makes ball accelerate too much)
-    grassInfluenceBias = pow(grassInfluenceBias, 0.7f); // at half grass height, there's already a bigger amount of friction than 50%
-    //printf("%f\n", bias);
 
+    grassInfluenceBias = std::pow(
+        grassInfluenceBias, 0.7f);  // at half grass height, there's already a
+                                    // bigger amount of friction than 50%
+    // printf("%f\n", bias);
 
     // bounce
 
@@ -212,7 +197,7 @@ BallSpatialInfo Ball::CalculatePrediction() {
       Vector3 xy = momentumPredict.Get2D();
       float velo = xy.GetLength();
 
-      float newVelo = velo - adaptedFriction * pow(velo, 2.0f) * timeStep;
+      float newVelo = velo - adaptedFriction * std::pow(velo, 2.0f) * timeStep;
 
       // linear friction
       newVelo = clamp(newVelo - (linearFriction * grassInfluenceBias * timeStep), 0.0f, 100000.0f);
@@ -230,8 +215,7 @@ BallSpatialInfo Ball::CalculatePrediction() {
     float ballRadius = 0.11f;
     float postRadius = 0.07f;
 
-    netAbsorbInv = pow(netAbsorbInv, timeStep * 100.0f);
-
+    netAbsorbInv = std::pow(netAbsorbInv, timeStep * 100.0f);
 
     // woodwork
 
@@ -318,11 +302,6 @@ BallSpatialInfo Ball::CalculatePrediction() {
         Vector3 momentumPredictXZ = momentumPredict * Vector3(1, 0, 1);
         momentumPredict = (momentumPredictXZ.GetNormalized(normal) + (normal * 1.1f)).GetNormalized() * momentumPredictXZ.GetLength() * postAbsorbInv + (Vector3(0, 1, 0) * momentumPredict.coords[1]);
       }
-
-      if (woodwork) {
-        goalpostsound->SetGain(clamp(momentumPredict.GetLength() * 0.05f, 0.01f, 1.0f) * 0.5f * GetConfiguration()->GetReal("audio_volume", 0.5f));
-        goalpostsound->Poke(e_SystemType_Audio);
-      }
     }
 
 
@@ -346,10 +325,11 @@ BallSpatialInfo Ball::CalculatePrediction() {
 
       if (( ballIsInGoal && !betweenGoalWidth && behindBackline)) {
 
-        float netDist;
+        float netDist = 0.0f;
         netDist = fabs(fabs(nextPos.coords[1]) - goalHalfWidth);
         netDist = clamp(netDist, 0, 1);
-        float power = pow(netDist, powFactor) * -signSide(nextPos.coords[1]) * inGoal;
+        float power = std::pow(netDist, powFactor) *
+                      -signSide(nextPos.coords[1]) * inGoal;
 
         // net is stuck to woodwork so lay off there
         float woodworkTensionBiasInv = clamp((fabs(momentumPredict.coords[0]) - pitchHalfW) * 2.0f, 0.0f, 1.0f);
@@ -369,10 +349,11 @@ BallSpatialInfo Ball::CalculatePrediction() {
       if (( ballIsInGoal && !beforeGoalBack && behindBackline)/* ||
           (!ballIsInGoal && !asideGoalWidth && behindBackline && !behindGoalBack && belowGoalHeight ** todo disabled: too hard to code :p */) {
 
-        float netDist;
+        float netDist = 0.0f;
         netDist = fabs(fabs(nextPos.coords[0]) - (pitchHalfW + goalDepth));
         netDist = clamp(netDist, 0, 1);
-        float power = pow(netDist, powFactor) * -signSide(nextPos.coords[0]) * inGoal;
+        float power = std::pow(netDist, powFactor) *
+                      -signSide(nextPos.coords[0]) * inGoal;
         momentumPredict.coords[0] = momentumPredict.coords[0] * netAbsorbInv + power * powerFac * (100 * timeStep);
 
         if (predictTime_ms == 10) ballTouchesNet = true;
@@ -385,12 +366,12 @@ BallSpatialInfo Ball::CalculatePrediction() {
 //           (nextPos.coords[2] < 2.5 + 0.11 && !ballIsInGoal) todo disabled: too hard to code :p */) &&
 //          fabs(nextPos.coords[0]) > pitchHalfW) {
 
-      if (( ballIsInGoal && !belowGoalHeight && behindBackline )) { // todo: from above. so hard to code. wow.
+      if (( ballIsInGoal && !belowGoalHeight && behindBackline )) {
 
-        float netDist;
+        float netDist = 0.0f;
         netDist = fabs(fabs(nextPos.coords[2]) - goalHeight);
         netDist = clamp(netDist, 0, 1);
-        float power = pow(netDist, powFactor) * -inGoal;
+        float power = std::pow(netDist, powFactor) * -inGoal;
 
         // net is stuck to woodwork so lay off there
         float woodworkTensionBiasInv = clamp((fabs(momentumPredict.coords[0]) - pitchHalfW) * 2.0f, 0.0f, 1.0f);
@@ -436,8 +417,10 @@ BallSpatialInfo Ball::CalculatePrediction() {
       if (frictionFactor > 0.0f) {
         maxRotationChangePerSecond += 4.0f * pi;
       }
-      radian factor = 1.0f;
-      if (rotationChangePerSecond > maxRotationChangePerSecond) factor = maxRotationChangePerSecond / rotationChangePerSecond;
+      volatile radian factor = 1.0f;
+      if (rotationChangePerSecond > maxRotationChangePerSecond) {
+        factor = maxRotationChangePerSecond / rotationChangePerSecond;
+      }
       if (factor < 1.0f) {
         oldToNewRotation = oldToNewRotation.GetRotationMultipliedBy(factor);
       }
@@ -486,7 +469,7 @@ BallSpatialInfo Ball::CalculatePrediction() {
       float swerveAmount = NormalizedClamp(momentumPredict.GetLength(), 0.0f, 70.0f);
       // http://www.wolframalpha.com/input/?i=sin%28x+*+pi+*+0.7%29+^+2.2+from+x+%3D+0+to+1
       // <bazkie_drunk> ^ tnx, past myself, that's very convenient!
-      swerveAmount = fastpow(sin(swerveAmount * pi * 0.94f), 2.6f);
+      swerveAmount = pow(std::sin(swerveAmount * pi * 0.94f), 2.6f);
       Vector3 adaptedMomentumPredict = momentumPredict.GetNormalized(0) * swerveAmount * 30.0f;
 
       Vector3 swerve = adaptedMomentumPredict.GetCrossProduct(-rotVec) * 1.0;
@@ -542,15 +525,6 @@ Vector3 Ball::GetAveragePosition(unsigned int duration_ms) const {
   }
   if (total > 0) averageVec /= total; else averageVec = Predict(0);
   return averageVec;
-}
-
-void Ball::TriggerBallTouchSound(float gain) {
-  float finalGain = gain * 0.6f * GetConfiguration()->GetReal("audio_volume", 0.5f);
-  if (finalGain > 0.01f) {
-    sound->SetPitch(0.9f + random(0.0f, 0.2f));
-    sound->SetGain(finalGain);
-    sound->Poke(e_SystemType_Audio);
-  }
 }
 
 void Ball::Process() {

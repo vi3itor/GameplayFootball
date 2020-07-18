@@ -1,13 +1,27 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "slider.hpp"
 
+#include <cmath>
+
 #include "../windowmanager.hpp"
 
-#include "SDL/SDL_gfxBlitFunc.h"
-#include "SDL/SDL_rotozoom.h"
+//#include "SDL2/SDL_gfxBlitFunc.h"
 
 namespace blunted {
 
@@ -97,7 +111,7 @@ namespace blunted {
       alpha = 200;
       color1 = windowManager->GetStyle()->GetColor(e_DecorationType_Bright2);
     } else {
-      alpha = int(floor(200 - (fadeOut_ms / (float)fadeOutTime_ms * 100)));
+      alpha = int(std::floor(200 - (fadeOut_ms / (float)fadeOutTime_ms * 100)));
       float bias = fadeOut_ms / (float)fadeOutTime_ms;
       color1 = windowManager->GetStyle()->GetColor(e_DecorationType_Bright2) * (1 - bias) + windowManager->GetStyle()->GetColor(e_DecorationType_Dark1) * bias;
     }
@@ -131,8 +145,10 @@ namespace blunted {
     Vector3 direction = event->GetDirection();
 
     float xoffset = 0;
-    if (direction.coords[0] < -0.3f) xoffset = -pow(-direction.coords[0], 2.0f);
-    if (direction.coords[0] >  0.3f) xoffset =  pow(direction.coords[0], 2.0f);
+    if (direction.coords[0] < -0.3f)
+      xoffset = -std::pow(-direction.coords[0], 2.0f);
+    if (direction.coords[0] > 0.3f)
+      xoffset = std::pow(direction.coords[0], 2.0f);
 
     bool fullStep = false;
     if (direction.coords[0] > 0.99f || direction.coords[0] < 0.01f) { // full effect, maybe digital input, so make this 1 quantized step
@@ -147,7 +163,8 @@ namespace blunted {
       }
       if (value > 1.0f) value = 1.0f;
       if (value < 0.0f) value = 0.0f;
-      quantizedValue = round(value * (quantizationSteps - 1)) / (quantizationSteps - 1.0f);
+      quantizedValue = std::round(value * (quantizationSteps - 1)) /
+                       (quantizationSteps - 1.0f);
       sig_OnChange(this);
       Redraw();
     } else {
@@ -172,7 +189,8 @@ namespace blunted {
 
   void Gui2Slider::SetValue(float newValue) {
     value = clamp(newValue, 0.0f, 1.0f);
-    quantizedValue = round(value * (quantizationSteps - 1)) / (quantizationSteps - 1.0f);
+    quantizedValue = std::round(value * (quantizationSteps - 1)) /
+                     (quantizationSteps - 1.0f);
     Redraw();
   }
 
@@ -190,26 +208,4 @@ namespace blunted {
     return helper.index;
     Redraw();
   }
-
-  void Gui2Slider::SetHelperValue(int index, float value) {
-    for (unsigned int i = 0; i < helperValues.size(); i++) {
-      if (helperValues.at(i).index == index) {
-        helperValues.at(i).value = clamp(value, 0.0f, 1.0f);
-      }
-    }
-  }
-
-  void Gui2Slider::DeleteHelperValue(int index) {
-    std::vector<Gui2Slider_HelperValue>::iterator iter = helperValues.begin();
-    while (iter != helperValues.end()) {
-      if ((*iter).index == index) {
-        (*iter).descriptionCaption->Exit();
-        delete (*iter).descriptionCaption;
-        iter = helperValues.erase(iter);
-        break;
-      }
-      iter++;
-    }
-  }
-
 }

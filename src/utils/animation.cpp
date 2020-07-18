@@ -1,12 +1,27 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "animation.hpp"
 
-#include "base/utils.hpp"
+#include "../base/utils.hpp"
 
 #include <stdio.h>
+
+#include <cmath>
 
 #include "animationextensions/footballanimationextension.hpp"
 
@@ -14,7 +29,7 @@ std::string emptyString = "";
 
 namespace blunted {
 
-  // todo: make default orientation changeable
+
   radian FixAngle(radian angle, bool modulateIntoRange = true) {
     // convert engine angle into football angle (different base orientation: 'down' on y instead of 'right' on x)
     radian newAngle = angle;
@@ -46,14 +61,7 @@ namespace blunted {
     boost::shared_ptr<XMLTree> tmpCustomData(new XMLTree(*src.customData));
     customData = tmpCustomData;
 
-    std::map<const char*, std::string>::const_iterator varCacheIter = src.variableCache.begin();
-    while (varCacheIter != src.variableCache.end()) {
-      char *varName = new char[256];
-      memcpy(varName, varCacheIter->first, 256 * sizeof(char));
-      variableCache.insert(std::pair<const char*, std::string>(varName, varCacheIter->second));
-      varCacheIter++;
-    }
-
+    variableCache = src.variableCache;
     currentFoot = src.currentFoot;
 
     cache_translation_dirty = src.cache_translation_dirty;
@@ -157,28 +165,9 @@ namespace blunted {
     DirtyCache();
   }
 
-  void Animation::DeleteKeyFrame(std::string nodeName, int frame) {
-    // iterate nodes
-    int animSize = nodeAnimations.size();
-    for (int i = 0; i < animSize; i++) {
-      NodeAnimation *nodeAnimation = nodeAnimations.at(i);
-      if (nodeAnimation->nodeName == nodeName) {
-        // find frame
-        const std::map<int, KeyFrame>::iterator animIter = nodeAnimation->animation.find(frame);
-        if (animIter != nodeAnimation->animation.end()) {
-          nodeAnimation->animation.erase(animIter);
-          break;
-        }
-        if (animIter == nodeAnimation->animation.end()) printf("ERROR! keyframe does not exist\n");
-      }
-    }
-
-    DirtyCache();
-  }
-
   void Animation::GetInterpolatedValues(const std::map<int, KeyFrame> &animation, int frame, Quaternion &orientation, Vector3 &position, bool getOrientation, bool getPosition) const {
     std::vector<WeighedKey> weighedKeys;
-    // todo: rename weighing to weighting, omg
+
 
     position = Vector3(0);
     orientation = QUATERNION_IDENTITY;
@@ -341,32 +330,6 @@ namespace blunted {
     DirtyCache();
   }
 
-  void Animation::Invert() {
-
-    NodeAnimation *nodeAnimation = 0;
-
-    // simple keyframe-to-keyframe version
-    int animSize = nodeAnimations.size();
-    for (int i = 0; i < animSize; i++) {
-      nodeAnimation = nodeAnimations.at(i);
-
-      std::map<int, KeyFrame>::iterator keyIter = nodeAnimation->animation.begin();
-      while (keyIter != nodeAnimation->animation.end()) {
-        Quaternion &orient = (*keyIter).second.orientation;
-
-        radian x, y, z;
-        orient.GetAngles(x, y, z);
-        Quaternion rotX, rotY, rotZ;
-        rotX.SetAngleAxis(-x, Vector3(1, 0, 0));
-        rotY.SetAngleAxis(-y, Vector3(0, 1, 0));
-        rotZ.SetAngleAxis(-z, Vector3(0, 0, 1));
-        orient = rotX * rotY * rotZ;
-
-        keyIter++;
-      }
-    }
-  }
-
   void Animation::Apply(const std::map < const std::string, boost::intrusive_ptr<Node> > nodeMap, int frame, int timeOffset_ms, bool smooth, float smoothFactor, /*const boost::shared_ptr<Animation> previousAnimation, int smoothFrames, */const Vector3 &basePos, radian baseRot, std::map < std::string, BiasedOffset > &offsets, MovementHistory *movementHistory, int timeDiff_ms, bool noPos, bool updateSpatial) {
 
     // simple keyframe-to-keyframe version
@@ -375,10 +338,10 @@ namespace blunted {
 
     //int futureFrameOffset = 1;
 
-    unsigned int animSize = nodeAnimations.size();
-    for (unsigned int i = 0; i < animSize; i++) {
+    for (const auto nodeAnimation : nodeAnimations) {
 
-      nodeAnimation = nodeAnimations.at(i);
+      auto mapNode = nodeMap.find(nodeAnimation->nodeName);
+      assert(mapNode != nodeMap.end());
 
       Quaternion orientation;
       Vector3 position;
@@ -393,7 +356,7 @@ namespace blunted {
       int smoothFrames = 0;
       if (smooth && 1 == 2) {
         smoothFrames = 0;
-        if (GetAnimType() == "movement") smoothFrames = 1;
+        if (GetAnimType() == e_DefString_Movement) smoothFrames = 1;
         float factor = (smoothFrames * 2) + 1;
         bias /= factor;
         bias += 0.5f - ((1.0f / factor) * 0.5f); // center, then subtract half of new size
@@ -404,7 +367,7 @@ namespace blunted {
       orientation = orientation_pre.GetLerped(bias, orientation_post).GetNormalized();
       position = position_pre * (1.0f - bias) + position_post * bias;
 
-      assert(nodeMap.find(nodeAnimation->nodeName) != nodeMap.end());
+
 
       if (nodeAnimation->nodeName.compare("player") == 0) {
         if (noPos) {
@@ -457,13 +420,14 @@ namespace blunted {
           movementHistoryEntry = &movementHistory->back();
         }
 
-        float beginBias = pow(curve(1.0f - NormalizedClamp(frame, 0, 8), 1.0f), 0.5f);
+        float beginBias =
+            std::pow(curve(1.0f - NormalizedClamp(frame, 0, 8), 1.0f), 0.5f);
         float currentBias = 0.0f + beginBias * smoothFactor * 0.5f;
 
         if (nodeAnimation->nodeName.compare("player") != 0) {
 
           const Quaternion &previousOrientation = movementHistoryEntry->orientation;
-          Quaternion currentOrientation = nodeMap.find(nodeAnimation->nodeName)->second->GetRotation();
+          Quaternion currentOrientation = mapNode->second->GetRotation();
           currentOrientation.MakeSameNeighborhood(previousOrientation);
 
           if (timeDiff_ms > 0) {
@@ -481,8 +445,15 @@ namespace blunted {
               //currentRotation.Normalize();
 
               // add some extra overall smoothness
-              // todo: why does this work at all? let alone so well?! haha
-              orientation = orientation.GetSlerped(pow(1.0f - clamp(timeDiff_ms / 30.0f, 0.0f, 1.0f), 0.5f) * (0.5f + smoothFactor * 0.5f * beginBias), currentOrientation).GetNormalized();
+
+              orientation =
+                  orientation
+                      .GetSlerped(std::pow(1.0f - clamp(timeDiff_ms / 30.0f,
+                                                        0.0f, 1.0f),
+                                           0.5f) *
+                                      (0.5f + smoothFactor * 0.5f * beginBias),
+                                  currentOrientation)
+                      .GetNormalized();
               //orientation = orientation.GetSlerped(pow(1.0f - clamp(timeDiff_ms / 30.0f, 0.0f, 1.0f), 0.5f), currentOrientation).GetNormalized();
               //orientation = orientation.GetSlerped(0.9f + 0.1f * beginBias, currentOrientation).GetNormalized();
 
@@ -492,7 +463,9 @@ namespace blunted {
 
               // enforce max change
 
-              radian angleDiff_per_ms = 2.0f * acos(clamp(currentToDesiredDot, -1.0f, 1.0f)) / (float)timeDiff_ms;
+              radian angleDiff_per_ms =
+                  2.0f * std::acos(clamp(currentToDesiredDot, -1.0f, 1.0f)) /
+                  (float)timeDiff_ms;
               radian maxDiff_per_ms = 5.0f * pi * 0.001f;
               //if (nodeAnimation->nodeName.compare("body") == 0) maxDiff_per_ms = 3.0f * pi * 0.001f;
               if (angleDiff_per_ms > maxDiff_per_ms) {
@@ -547,7 +520,10 @@ namespace blunted {
               // now get the resulting rotation, which is the current rotation, converged as much towards the desired rotation as allowed, based upon maximum rotational angle change per time unit
               Quaternion resultingRotation_per_ms = desiredRotation_per_ms;
               float currentToDesiredRotationDot = desiredRotation_per_ms.MakeSameNeighborhood(currentRotation_per_ms);
-              radian angleDiff_per_ms_per_s = 2.0f * acos(clamp(currentToDesiredRotationDot, -1.0f, 1.0f)) / ((float)timeDiff_ms * 0.001f);
+              radian angleDiff_per_ms_per_s =
+                  2.0f *
+                  std::acos(clamp(currentToDesiredRotationDot, -1.0f, 1.0f)) /
+                  ((float)timeDiff_ms * 0.001f);
               radian maxDiff_per_ms_per_s = 0.2f * pi;//0.15f
               // braking is easier than accelerating
               //if (identity.MakeSameNeighborhood(desiredRotation_per_ms) > identity.MakeSameNeighborhood(currentRotation_per_ms)) maxDiff_per_ms_per_s = 0.4f * pi;
@@ -581,7 +557,9 @@ namespace blunted {
 
               // maximum rotational velocity
               float dot = orientation.MakeSameNeighborhood(currentOrientation);
-              radian angle_per_second = 2.0f * acos(clamp(dot, -1.0f, 1.0f)) / ((float)timeDiff_ms * 0.001f);
+              radian angle_per_second = 2.0f *
+                                        std::acos(clamp(dot, -1.0f, 1.0f)) /
+                                        ((float)timeDiff_ms * 0.001f);
               radian maxAngle_per_second = 7.5f * pi;//5.5f * pi;
               //if (nodeAnimation->nodeName.compare("body") == 0) maxAngle_per_second *= 0.8f;
               if (nodeAnimation->nodeName.compare("left_elbow") == 0) maxAngle_per_second *= 1.2f;
@@ -641,7 +619,7 @@ namespace blunted {
         else if (nodeAnimation->nodeName.compare("player") == 0) {
 
           const Vector3 &previousPosition = movementHistoryEntry->position;
-          Vector3 currentPosition = nodeMap.find(nodeAnimation->nodeName)->second->GetPosition();
+          Vector3 currentPosition = mapNode->second->GetPosition();
 
           if (timeDiff_ms > 0 && beginBias > 0.01f) {
 
@@ -676,27 +654,19 @@ namespace blunted {
 
             float maxMetersPerSec = 2.8f;//1.8f
             if (GetVariable("outgoing_special_state").compare("") != 0) maxMetersPerSec = 6.0f;
-            float allowedDistance = maxMetersPerSec * ((float)timeDiff_ms * 0.001f);
+            volatile float allowedDistance = maxMetersPerSec * ((float)timeDiff_ms * 0.001f);
 
-            //float oldPosition = nodeMap.find(nodeAnimation->nodeName)->second->GetPosition().coords[2];
             float newZ = position.coords[2] + basePos.coords[2];
-            float desiredDistance = fabs(newZ - currentPosition.coords[2]);
+            volatile float desiredDistance = fabs(newZ - currentPosition.coords[2]);
 
-            float bias = 1.0f;
-            if (desiredDistance > allowedDistance) bias = allowedDistance / desiredDistance;
+            volatile float bias = 1.0f;
+            if (desiredDistance > allowedDistance) {
+              bias = allowedDistance / desiredDistance;
+            }
 
             newZ = (newZ * bias + currentPosition.coords[2] * (1.0f - bias)) * beginBias +
                    newZ * (1.0f - beginBias); // dual biasses ^_^ works like this: currentPosition influence only effective when beginbias > 0
-
-  // /old version
-
-
-            //nodeMap.find(nodeAnimation->nodeName)->second->SetPosition(newPosition, false);
-            // only height
             position = position.Get2D() + Vector3(0, 0, newZ);
-
-            //nodeMap.find(nodeAnimation->nodeName)->second->SetPosition((position + basePos).Get2D() + Vector3(0, 0, newZ), false);
-
           }
 
           movementHistoryEntry->position = currentPosition;
@@ -708,82 +678,16 @@ namespace blunted {
 
 
       if (nodeAnimation->nodeName.compare("player") != 0) {
-        Quaternion currentOrientation = nodeMap.find(nodeAnimation->nodeName)->second->GetRotation();
+        Quaternion currentOrientation = mapNode->second->GetRotation();
         orientation.MakeSameNeighborhood(currentOrientation);
-        nodeMap.find(nodeAnimation->nodeName)->second->SetRotation(orientation, false);
+        mapNode->second->SetRotation(orientation, false);
       } else if (nodeAnimation->nodeName.compare("player") == 0) {
-        nodeMap.find(nodeAnimation->nodeName)->second->SetPosition(position + basePos, false);
+        mapNode->second->SetPosition(position + basePos, false);
       }
 
     }
 
     if (updateSpatial) (*nodeMap.find(nodeAnimations.at(0)->nodeName)).second->RecursiveUpdateSpatialData(e_SpatialDataType_Both);
-  }
-
-  void Animation::Shift(int fromFrame, int offset) { // todo: offset does not yet work
-    if (offset == 1) {
-      bool somethingShifted = false;
-      int animSize = nodeAnimations.size();
-      for (int i = 0; i < animSize; i++) {
-        NodeAnimation *nodeAnimation = nodeAnimations.at(i);
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimation->animation.begin();
-        std::map<int, KeyFrame> newAnimation;
-        while (animIter != nodeAnimation->animation.end()) {
-
-          //printf("%i, ", animIter->first);
-          KeyFrame keyFrame = animIter->second;
-          int frameNum = animIter->first;
-          if (animIter->first >= fromFrame) {
-            frameNum++; // shift
-            somethingShifted = true;
-          }
-          newAnimation.insert(std::pair<int, KeyFrame>(frameNum, keyFrame));
-          animIter++;
-        }
-        nodeAnimation->animation = newAnimation;
-      }
-
-      if (somethingShifted) {
-        frameCount++;
-        DirtyCache();
-      }
-    }
-
-    if (offset == -1) {
-      bool somethingShifted = false;
-      int animSize = nodeAnimations.size();
-      for (int i = 0; i < animSize; i++) {
-        NodeAnimation *nodeAnimation = nodeAnimations.at(i);
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimation->animation.begin();
-        std::map<int, KeyFrame> newAnimation;
-        while (animIter != nodeAnimation->animation.end()) {
-
-          //printf("%i, ", animIter->first);
-          KeyFrame keyFrame = animIter->second;
-          int frameNum = animIter->first;
-          if (animIter->first != fromFrame) {
-            if (animIter->first > fromFrame) {
-              frameNum--; // shift
-              somethingShifted = true;
-            }
-            newAnimation.insert(std::pair<int, KeyFrame>(frameNum, keyFrame));
-          }
-          animIter++;
-        }
-        nodeAnimation->animation = newAnimation;
-      }
-
-      if (somethingShifted) {
-        frameCount--;
-        DirtyCache();
-      }
-    }
-
-    std::map < std::string, boost::shared_ptr<AnimationExtension> >::iterator extensionIter = extensions.begin();
-    while (extensionIter != extensions.end()) {
-      extensionIter->second->Shift(fromFrame, offset);
-      extensionIter++;
-    }
   }
 
   Vector3 Animation::GetTranslation() const {
@@ -797,7 +701,7 @@ namespace blunted {
   }
 
   Vector3 Animation::GetIncomingMovement() const {
-    // todo: check if correct with idle incoming velo + weird incoming body rot
+
     if (cache_incomingMovement_dirty) {
       if (nodeAnimations.at(0)->animation.size() > 1) {
         cache_incomingMovement = ((++nodeAnimations.at(0)->animation.begin())->second.position -
@@ -850,20 +754,6 @@ namespace blunted {
       cache_outgoingMovement_dirty = false;
     }
     return cache_outgoingMovement;
-  }
-
-  Vector3 Animation::GetRangedOutgoingMovement() const {
-    if (cache_rangedOutgoingMovement_dirty || cache_outgoingVelocity_dirty || cache_angle_dirty) {
-
-      if (nodeAnimations.at(0)->animation.size() > 1) {
-        cache_rangedOutgoingMovement = Vector3(0, -GetOutgoingVelocity(), 0).GetRotated2D(GetOutgoingAngle());
-      } else {
-        cache_rangedOutgoingMovement = Vector3(0);
-      }
-
-      cache_rangedOutgoingMovement_dirty = false;
-    }
-    return cache_rangedOutgoingMovement;
   }
 
   Vector3 Animation::GetOutgoingDirection() const {
@@ -1059,12 +949,6 @@ namespace blunted {
     }
 
     customData.reset();
-
-    std::map<const char*, std::string>::const_iterator iter = variableCache.begin();
-    while (iter != variableCache.end()) {
-      delete [] (*iter).first;
-      iter++;
-    }
     variableCache.clear();
     nodeAnimations.clear();
     extensions.clear();
@@ -1181,66 +1065,37 @@ namespace blunted {
     // create variable cache
     iter = customData->children.begin();
     while (iter != customData->children.end()) {
-      char *varName = new char[256];
-      strcpy(varName, (*iter).first.c_str());
-      std::string varData = (*iter).second.value;
-      //printf("varname: %s, vardata: %s\n", varName, varData.c_str());
-
-      variableCache.insert(std::pair<const char*, std::string>(varName, varData));
-
+      variableCache[(*iter).first] = (*iter).second.value;
       iter++;
     }
 
-    cache_AnimType = variableCache.find("type")->second;
+    std::map<std::string, e_DefString> mapping;
+    mapping[""] = e_DefString_Empty;
+    mapping["outgoing_special_state"] = e_DefString_OutgoingSpecialState;
+    mapping["incoming_special_state"] = e_DefString_IncomingSpecialState;
+    mapping["specialvar1"] = e_DefString_SpecialVar1;
+    mapping["specialvar2"] = e_DefString_SpecialVar2;
+    mapping["type"] = e_DefString_Type;
+    mapping["trap"] = e_DefString_Trap;
+    mapping["deflect"] = e_DefString_Deflect;
+    mapping["interfere"] = e_DefString_Interfere;
+    mapping["trip"] = e_DefString_Trip;
+    mapping["shortpass"] = e_DefString_ShortPass;
+    mapping["longpass"] = e_DefString_LongPass;
+    mapping["shot"] = e_DefString_Shot;
+    mapping["sliding"] = e_DefString_Sliding;
+    mapping["movement"] = e_DefString_Movement;
+    mapping["special"] = e_DefString_Special;
+    mapping["ballcontrol"] = e_DefString_BallControl;
+    mapping["highpass"] = e_DefString_HighPass;
+    mapping["catch"] = e_DefString_Catch;
+    mapping["outgoing_retain_state"] = e_DefString_OutgoingRetainState;
+    mapping["incoming_retain_state"] = e_DefString_IncomingRetainState;
+    cache_AnimType_str = variableCache.find("type")->second;
+    cache_AnimType = mapping[cache_AnimType_str];
 
     ConvertToStartFacingForwardIfIdle();
 
-  }
-
-  void Animation::Save(const std::string &filename) {
-    std::vector<std::string> fileData;
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line;
-      line = nodeAnimations.at(i)->nodeName + ",";
-      std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-      while (animIter != nodeAnimations.at(i)->animation.end()) {
-        line.append(int_to_str(animIter->first) + ","); // frame number
-        if (nodeAnimations.at(i)->nodeName != "player") {
-          line.append(real_to_str(animIter->second.orientation.elements[0]) + ","); // X element
-          line.append(real_to_str(animIter->second.orientation.elements[1]) + ","); // Y element
-          line.append(real_to_str(animIter->second.orientation.elements[2]) + ","); // Z element
-          line.append(real_to_str(animIter->second.orientation.elements[3]) + ","); // W element
-        } else {
-          line.append(real_to_str(animIter->second.position.coords[0]) + ","); // X pos
-          line.append(real_to_str(animIter->second.position.coords[1]) + ","); // Y pos
-          line.append(real_to_str(animIter->second.position.coords[2]) + ","); // Z pos
-        }
-        animIter++;
-      }
-      line = line.substr(0, line.length() - 1);
-      fileData.push_back(line);
-    }
-
-    FILE *file;
-    file = fopen(filename.c_str(), "w");
-    if (!file) {
-      Log(e_Error, "Animation", "Save", "Could not open file " + filename + " for writing");
-      return;
-    }
-    for (int i = 0; i < (signed int)fileData.size(); i++) {
-      fprintf(file, "%s\n", fileData.at(i).c_str());
-    }
-
-    std::map < std::string, boost::shared_ptr<AnimationExtension> >::iterator extensionIter = extensions.begin();
-    while (extensionIter != extensions.end()) {
-      (*extensionIter).second->Save(file);
-      extensionIter++;
-    }
-
-    XMLLoader loader;
-    fprintf(file, "%s", loader.GetSource((*customData)).c_str());
-
-    fclose(file);
   }
 
   void Animation::Mirror() {
@@ -1291,15 +1146,13 @@ namespace blunted {
     }
 
     // variables
-    std::map<const char*, std::string>::iterator varIter = variableCache.begin();
-    while (varIter != variableCache.end()) {
-      std::string &varData = varIter->second;
+    for (auto varIter : variableCache) {
+      std::string &varData = varIter.second;
       if (varData.substr(0, 4) == "left") {
         varData = varData.replace(0, 4, "right");
       } else if (varData.substr(0, 5) == "right") {
         varData = varData.replace(0, 5, "left");
       }
-      varIter++;
     }
 
     Vector3 newBallDirVec = GetVariable("balldirection") != "" ? GetVectorFromString(GetVariable("balldirection")) * Vector3(-1, 1, 1) : 0;
@@ -1326,7 +1179,7 @@ namespace blunted {
 
   const std::string &Animation::GetVariable(const char *name) const {
 
-    std::map<const char*, std::string>::const_iterator iter = variableCache.find(name);
+    auto iter = variableCache.find(name);
     //printf("looking for %s.. %s\n", name, variableCache.begin()->first);
     if (iter != variableCache.end()) {
       //printf("found %s\n", iter->second.c_str());
@@ -1345,368 +1198,11 @@ namespace blunted {
     }
 
     // flat list for speed, i guess, i should start documenting stuff earlier
-    std::map<const char*, std::string>::iterator iter2 = variableCache.find(name.c_str());
+    auto iter2 = variableCache.find(name.c_str());
     if (iter2 != variableCache.end()) {
       iter2->second = value;
     } else {
-      char *varName = new char[256];
-      strcpy(varName, name.c_str());
-      variableCache.insert(std::pair<const char*, std::string>(varName, value));
+      variableCache[name] = value;
     }
   }
-
-  boost::shared_ptr<XMLTree> Animation::GetCustomData() {
-    return customData;
-  }
-
-  void Animation::Hax() {
-/*
-    // outgoing ball angle == outgoing player angle
-    Vector3 position;
-    int frame;
-    bool touch = boost::static_pointer_cast<FootballAnimationExtension>(GetExtension("football"))->GetFirstTouch(position, frame);
-    if (touch) {
-      Vector3 angles, position;
-      float power;
-      GetExtension("football")->GetKeyFrame(frame, angles, position, power);
-      //angles.coords[2] = ModulateIntoRange(-pi, pi, GetAngle());
-      power = 1;//GetOutgoingVelocity() * 0.2;
-
-      if (GetVariable("type") == "shortpass") {
-        power = 2;//GetOutgoingVelocity() * 0.4;
-      }
-
-
-      //position = Vector3(0.0, -0.1 - 0.012 * GetOutgoingMovement().GetLength() * frame, 0);
-
-
-      //if (position.GetAngle2D() + 0.5 * pi < 3.0)
-      //position.Rotate2D(-(position.GetAngle2D() + 0.5 * pi));
-      //position.Print();
-      //position = Vector3(0, -0.5, 0);
-      GetExtension("football")->SetKeyFrame(frame, angles, position, power);
-      //printf("%f\n", power);
-    }
-*/
-
-/*
-      XMLTree tree;
-      tree.value = "movement";
-      customData->children.insert(std::pair<std::string, XMLTree>("type", tree));
-*/
-
-
-/*
-    for (int i = 0; i < nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->node->GetName();
-      printf("%s\n", line.c_str());
-      if (line == "player") nodeAnimations.at(i)->node->SetName("body");
-      if (line == "player node") nodeAnimations.at(i)->node->SetName("player");
-    }
-    printf("\n\n");
-*/
-
-/*
-  nodeAnimations.at(0)->node->SetName("player");
-  nodeAnimations.at(1)->node->SetName("body");
-*/
-
-// put player rotation into body
-/*
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(0)->animation.begin();
-        while (animIter != nodeAnimations.at(0)->animation.end()) {
-          Vector3 angles = animIter->second.angles;
-          animIter->second.angles = Vector3(0);
-          SetKeyFrame(nodeAnimations.at(1)->node, animIter->first, angles, Vector3(0));
-          animIter++;
-        }
-*/
-
-// exaggerate middle forward bending
-/*
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-      if (line == "middle") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          animIter->second.angles.coords[0] += (pi * 2) / 360.0 * 2;
-          animIter++;
-        }
-      }
-    }
-*/
-
-    // exaggerate body lending
-    /*
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-      if (line == "body") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa *= 1.4;
-          rotYa *= 1.4;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-    }
-    */
-
-// bend knees/hips more - lower player stance
-/*
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-      if (line == "left_thigh" || line == "right_thigh") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa -= 0.04;
-          rotXa *= 1.1;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-      if (line == "left_knee" || line == "right_knee") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa += 0.08;
-          rotXa *= 1.2;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-      if (line == "player") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-
-          animIter->second.position.coords[2] -= 0.01;
-
-          animIter++;
-        }
-      }
-    }
-*/
-
-// exaggerate everything
-
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-      if (line != "body") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa *= 1.1;
-          rotYa *= 1.1;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-    }
-
-
-// bend body/middle more
-/*
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-*/
-/*
-      if (line == "body") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa *= 1.4;
-          rotYa *= 1.4;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-      */
-/*
-      if (line == "middle") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa -= 0.2;
-          //rotYa -= 0.5;
-          rotXa *= 1.2;
-          //rotYa *= 1.4;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-    }
-*/
-
-
-// bend arms more
-/*
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-      if (line == "left_shoulder" || line == "right_shoulder") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa += 0.25f;
-          //rotXa *= 1.4;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-*/
-      /*
-      if (line == "left_elbow" || line == "right_elbow") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          radian rotXa, rotYa, rotZa;
-          animIter->second.orientation.GetAngles(rotXa, rotYa, rotZa);
-
-          rotXa += 0.28;
-          rotXa *= 1.4;
-
-          Quaternion rotX, rotY, rotZ, quat;
-          rotX.SetAngleAxis(rotXa, Vector3(1, 0, 0));
-          rotY.SetAngleAxis(rotYa, Vector3(0, 1, 0));
-          rotZ.SetAngleAxis(rotZa, Vector3(0, 0, 1));
-          quat = rotX * rotY * rotZ;
-
-          animIter->second.orientation = quat;
-
-          animIter++;
-        }
-      }
-    */
-//    }
-
-// faster movement
-/*
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-      if (line == "player") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-
-          animIter->second.position.coords[0] *= 1.428;
-          animIter->second.position.coords[1] *= 1.428;
-
-          animIter++;
-        }
-      }
-    }
-*/
-
-// heighten body node 0.74
-/*
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(1)->animation.begin();
-        while (animIter != nodeAnimations.at(1)->animation.end()) {
-          Vector3 angles = animIter->second.angles;
-          animIter->second.position += Vector3(0, 0, 0.74);
-          animIter++;
-        }
-*/
-
-// exaggerate body angle in bends
-/*
-    radian angle = GetAngle();
-    if (angle > 0.24 * pi) angle = 0.24 * pi;
-    float vel = (GetIncomingMovement().GetLength() + GetOutgoingMovement().GetLength() * 2) / 3.0;
-    angle *= vel;
-
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(1)->animation.begin();
-        while (animIter != nodeAnimations.at(1)->animation.end()) {
-          animIter->second.angles.coords[1] += angle * 3;
-          animIter++;
-        }
-*/
-
-// arms higher
-    /*
-    for (int i = 0; i < (signed int)nodeAnimations.size(); i++) {
-      std::string line = nodeAnimations.at(i)->nodeName;
-      if (line == "left_shoulder" || line == "right_shoulder") {
-        std::map<int, KeyFrame>::iterator animIter = nodeAnimations.at(i)->animation.begin();
-        while (animIter != nodeAnimations.at(i)->animation.end()) {
-          float offset;
-          if (line == "left_shoulder") offset = -0.05 * pi; else offset = 0.05 * pi;
-          //animIter->second.angles.coords[1] += offset;
-          animIter->second.angles.coords[1] += offset;
-          animIter++;
-        }
-      }
-    }
-    */
-
-  }
-
 }

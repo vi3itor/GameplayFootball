@@ -1,14 +1,29 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "quaternion.hpp"
 
+#include <cmath>
+
 #include "bluntmath.hpp"
 #include "vector3.hpp"
 #include "matrix3.hpp"
 
-#include "base/log.hpp"
+#include "../../base/log.hpp"
 
 // most of the formulas derived from ogre3d
 // lots of credit to the ogre3d crew!
@@ -77,7 +92,7 @@ namespace blunted {
           1.0f + tmp.elements[8] - tmp.elements[0] - tmp.elements[4], tmp.elements[3] - tmp.elements[1]);
       n4 = elements[2];
     }
-    scale(0.5f / (float)sqrt(n4));
+    scale(0.5f / (float)std::sqrt(n4));
   }
 
 
@@ -200,11 +215,11 @@ namespace blunted {
     float singularityTest = elements[x] * elements[y] + elements[z] * elements[3];
     if (singularityTest > 0.49999 || singularityTest < -0.49999) { // north and south pole
       if (singularityTest > 0) {
-        Z = 2 * atan2(elements[x], elements[z]);
+        Z = 2 * std::atan2(elements[x], elements[z]);
         Y = pi * 0.5;
       }
       if (singularityTest < 0) {
-        Z = -2 * atan2(elements[x], elements[z]);
+        Z = -2 * std::atan2(elements[x], elements[z]);
         Y = -pi * 0.5;
       }
       X = 0;
@@ -213,9 +228,14 @@ namespace blunted {
     real sqx = elements[x] * elements[x];
     real sqy = elements[y] * elements[y];
     real sqz = elements[z] * elements[z];
-    Z = atan2(2 * elements[y] * elements[3] - 2 * elements[x] * elements[z], 1 - 2 * sqy - 2 * sqz);
-    Y =  asin(2 * elements[x] * elements[y] + 2 * elements[z] * elements[3]);
-    X = atan2(2 * elements[x] * elements[3] - 2 * elements[y] * elements[z], 1 - 2 * sqx - 2 * sqz);
+    Z = std::atan2(
+        2 * elements[y] * elements[3] - 2 * elements[x] * elements[z],
+        1 - 2 * sqy - 2 * sqz);
+    Y = std::asin(2 * elements[x] * elements[y] +
+                  2 * elements[z] * elements[3]);
+    X = std::atan2(
+        2 * elements[x] * elements[3] - 2 * elements[y] * elements[z],
+        1 - 2 * sqx - 2 * sqz);
   }
 
   void Quaternion::SetAngles(radian X, radian Y, radian Z) {
@@ -243,9 +263,9 @@ namespace blunted {
 
     // http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle
 
-    rfangle = 2.0f * acos(elements[3]);
+    rfangle = 2.0f * std::acos(elements[3]);
 
-    double div = sqrt(1.0f - elements[3] * elements[3]);
+    double div = std::sqrt(1.0f - elements[3] * elements[3]);
     if (div < 0.000001f) {
       rkaxis.coords[0] = elements[0];
       rkaxis.coords[1] = elements[1];
@@ -255,23 +275,6 @@ namespace blunted {
       rkaxis.coords[1] = elements[1] / div;
       rkaxis.coords[2] = elements[2] / div;
     }
-
-    /*
-    // non-tested version from http://willperone.net/Code/quaternion.php
-    angle = acosf(s);
-
-    // pre-compute to save time
-    float sinf_theta_inv = 1.0/sinf(angle);
-
-    // now the vector
-    axis.x = v.x*sinf_theta_inv;
-    axis.y = v.y*sinf_theta_inv;
-    axis.z = v.z*sinf_theta_inv;
-
-    // multiply by 2
-    angle*=2;
-    */
-
   }
 
   void Quaternion::SetAngleAxis(const radian& rfangle, const Vector3& rkaxis) {
@@ -306,7 +309,9 @@ namespace blunted {
 
   real Quaternion::GetMagnitude() const {
     if (elements[0] == 0.0f && elements[1] == 0.0f && elements[2] == 0.0f && elements[3] == 0.0f) return 0.0f;
-    real magnitude = sqrt(elements[0] * elements[0] + elements[1] * elements[1] + elements[2] * elements[2] + elements[3] * elements[3]);
+    real magnitude =
+        std::sqrt(elements[0] * elements[0] + elements[1] * elements[1] +
+                  elements[2] * elements[2] + elements[3] * elements[3]);
     if (magnitude < 0.000001) return 0.0f;
     return magnitude;
   }
@@ -407,7 +412,7 @@ namespace blunted {
     //printf("angle: %f\n", angle);
     if (angle > pi) angle -= 2.0f * pi; // range -pi .. pi
 
-    angle = fmod(angle * factor, 2.0f * pi); // remove multiples of 2pi
+    angle = std::fmod(angle * factor, 2.0f * pi);  // remove multiples of 2pi
 
     result.SetAngleAxis(angle, axis);
 

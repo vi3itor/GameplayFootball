@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -8,7 +21,7 @@
 #include "humanoid/humanoid.hpp"
 #include "playerbase.hpp"
 
-#include "utils/gui2/widgets/caption.hpp"
+#include "../../utils/gui2/widgets/caption.hpp"
 
 #include "../../menu/menutask.hpp"
 
@@ -17,10 +30,10 @@ class Team;
 class ElizaController;
 
 struct TacticalPlayerSituation {
-  float forwardSpaceRating;
-  float toGoalSpaceRating;
-  float spaceRating;
-  float forwardRating;
+  float forwardSpaceRating = 0.0f;
+  float toGoalSpaceRating = 0.0f;
+  float spaceRating = 0.0f;
+  float forwardRating = 0.0f;
 };
 
 class Player : public PlayerBase {
@@ -36,7 +49,7 @@ class Player : public PlayerBase {
     Team *GetTeam();
 
     // get ready for some action
-    virtual void Activate(boost::intrusive_ptr<Node> humanoidSourceNode, boost::intrusive_ptr<Node> fullbodySourceNode, std::map<Vector3, Vector3> &colorCoords, boost::intrusive_ptr < Resource<Surface> > kit, boost::shared_ptr<AnimCollection> animCollection);
+    virtual void Activate(boost::intrusive_ptr<Node> humanoidSourceNode, boost::intrusive_ptr<Node> fullbodySourceNode, std::map<Vector3, Vector3> &colorCoords, boost::intrusive_ptr < Resource<Surface> > kit, boost::shared_ptr<AnimCollection> animCollection, bool lazyPlayer);
     // go back to bench/take a shower
     virtual void Deactivate();
 
@@ -85,8 +98,14 @@ class Player : public PlayerBase {
     void Hide2D();
 
     void GiveYellowCard(unsigned long giveTime_ms) { cards++; cardEffectiveTime_ms = giveTime_ms; }
-    void GiveRedCard(unsigned long giveTime_ms) { cards += 3; cardEffectiveTime_ms = giveTime_ms; }
-    int GetCards() const { return cards; }
+    void GiveRedCard(unsigned long giveTime_ms) {
+      cards += 3;
+      cardEffectiveTime_ms = giveTime_ms;
+    }
+
+    bool HasCards() {
+      return cards > 0;
+    }
 
     void SendOff();
 
@@ -98,26 +117,26 @@ class Player : public PlayerBase {
   protected:
     void _CalculateTacticalSituation();
 
-    Team *team;
+    Team *team = nullptr;
 
-    signed int manMarkingID;
+    signed int manMarkingID = 0;
 
     FormationEntry dynamicFormationEntry;
 
-    bool hasPossession;
-    bool hasBestPossession;
-    bool hasUniquePossession;
-    int possessionDuration_ms;
-    unsigned int timeNeededToGetToBall_ms;
-    unsigned int timeNeededToGetToBall_optimistic_ms;
-    unsigned int timeNeededToGetToBall_previous_ms;
+    bool hasPossession = false;
+    bool hasBestPossession = false;
+    bool hasUniquePossession = false;
+    int possessionDuration_ms = 0;
+    unsigned int timeNeededToGetToBall_ms = 0;
+    unsigned int timeNeededToGetToBall_optimistic_ms = 0;
+    unsigned int timeNeededToGetToBall_previous_ms = 0;
 
-    bool triggerControlledBallCollision;
+    bool triggerControlledBallCollision = false;
 
     TacticalPlayerSituation tacticalSituation;
 
-    bool buf_nameCaptionShowCondition;
-    bool buf_debugCaptionShowCondition;
+    bool buf_nameCaptionShowCondition = false;
+    bool buf_debugCaptionShowCondition = false;
     std::string buf_nameCaption;
     std::string buf_debugCaption;
     Vector3 buf_nameCaptionPos;
@@ -125,8 +144,8 @@ class Player : public PlayerBase {
     Vector3 buf_playerColor;
     Vector3 buf_debugCaptionColor;
 
-    bool fetchedbuf_nameCaptionShowCondition;
-    bool fetchedbuf_debugCaptionShowCondition;
+    bool fetchedbuf_nameCaptionShowCondition = false;
+    bool fetchedbuf_debugCaptionShowCondition = false;
     std::string fetchedbuf_nameCaption;
     std::string fetchedbuf_debugCaption;
     Vector3 fetchedbuf_nameCaptionPos;
@@ -134,17 +153,15 @@ class Player : public PlayerBase {
     Vector3 fetchedbuf_playerColor;
     Vector3 fetchedbuf_debugCaptionColor;
 
-    Gui2Caption *nameCaption;
-    Gui2Caption *debugCaption;
+    Gui2Caption *nameCaption = nullptr;
+    Gui2Caption *debugCaption = nullptr;
 
     boost::shared_ptr<MenuTask> menuTask;
 
-    int desiredTimeToBall_ms;
-    Vector3 idealMovement;
+    int desiredTimeToBall_ms = 0;
+    int cards = 0; // 1 == 1 yellow; 2 == 2 yellow; 3 == 1 red; 4 == 1 yellow, 1 red
 
-    int cards; // 1 == 1 yellow; 2 == 2 yellow; 3 == 1 red; 4 == 1 yellow, 1 red
-
-    unsigned long cardEffectiveTime_ms;
+    unsigned long cardEffectiveTime_ms = 0;
 
 };
 

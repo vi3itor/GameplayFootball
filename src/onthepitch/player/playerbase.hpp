@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -9,9 +22,10 @@
 #include "../../data/playerdata.hpp"
 #include "controller/icontroller.hpp"
 
-#include "scene/scene3d/node.hpp"
+#include "../../scene/scene3d/node.hpp"
 
 class Match;
+class HumanController;
 
 class PlayerBase {
 
@@ -20,12 +34,13 @@ class PlayerBase {
     virtual ~PlayerBase();
 
     int GetID() const { return id; }
-    PlayerData *GetPlayerData() { return playerData; }
+    int GetStableID() const { return stable_id; }
+    const PlayerData* GetPlayerData() { return playerData; }
 
     bool IsActive() { return isActive; }
 
     // get ready for some action
-    virtual void Activate(boost::intrusive_ptr<Node> humanoidSourceNode, boost::intrusive_ptr<Node> fullbodySourceNode, std::map<Vector3, Vector3> &colorCoords, boost::intrusive_ptr < Resource<Surface> > kit, boost::shared_ptr<AnimCollection> animCollection) = 0;
+    virtual void Activate(boost::intrusive_ptr<Node> humanoidSourceNode, boost::intrusive_ptr<Node> fullbodySourceNode, std::map<Vector3, Vector3> &colorCoords, boost::intrusive_ptr < Resource<Surface> > kit, boost::shared_ptr<AnimCollection> animCollection, bool lazyPlayer) = 0;
     // go back to bench/take a shower
     virtual void Deactivate();
 
@@ -42,8 +57,9 @@ class PlayerBase {
     inline Vector3 GetDirectionVec() const { return humanoid->GetDirectionVec(); }
     inline Vector3 GetBodyDirectionVec() const { return humanoid->GetBodyDirectionVec(); }
     inline Vector3 GetMovement() const { return humanoid->GetMovement(); }
-    inline radian GetAngle() const { return humanoid->GetAngle(); }
-    inline radian GetRelBodyAngle() const { return humanoid->GetRelBodyAngle(); }
+    inline radian GetRelBodyAngle() const {
+      return humanoid->GetRelBodyAngle();
+    }
     inline e_Velocity GetEnumVelocity() const { return humanoid->GetEnumVelocity(); }
     inline float GetFloatVelocity() const { return EnumToFloatVelocity(humanoid->GetEnumVelocity()); }
     inline e_FunctionType GetCurrentFunctionType() const { return humanoid->GetCurrentFunctionType(); }
@@ -53,8 +69,8 @@ class PlayerBase {
 
     void RequestCommand(PlayerCommandQueue &commandQueue);
     IController *GetController();
-    void SetExternalController(IController *externalController);
-    IController *GetExternalController() { return externalController; }
+    void SetExternalController(HumanController *externalController);
+    HumanController *GetExternalController();
 
     void SetDebug(bool state);
     bool GetDebug() const;
@@ -78,7 +94,6 @@ class PlayerBase {
     float GetMaxVelocity() const;
 
     const Anim *GetCurrentAnim() { return humanoid->GetCurrentAnim(); }
-    const Anim *GetPreviousAnim() { return humanoid->GetPreviousAnim(); }
 
     void SetLastTouchTime_ms(unsigned long touchTime_ms) { this->lastTouchTime_ms = touchTime_ms; }
     unsigned long GetLastTouchTime_ms() { return lastTouchTime_ms; }
@@ -89,36 +104,38 @@ class PlayerBase {
     const NodeMap &GetNodeMap() { return humanoid->GetNodeMap(); }
 
     float GetFatigueFactorInv() const { return fatigueFactorInv; }
-    void RelaxFatigue(float howMuch) { fatigueFactorInv += howMuch; fatigueFactorInv = clamp(fatigueFactorInv, 0.01f, 1.0f); }
-    float GetConfidenceFactor() const { return confidenceFactor; }
-
-    float GetAverageStat() { return averageStat; }
+    void RelaxFatigue(float howMuch) {
+      fatigueFactorInv += howMuch;
+      fatigueFactorInv = clamp(fatigueFactorInv, 0.01f, 1.0f);
+    }
 
     virtual void ResetSituation(const Vector3 &focusPos);
+    static void resetPlayerCount() {
+      stablePlayerCount = 0;
+    }
 
   protected:
     Match *match;
 
-    PlayerData *playerData;
-    const int id;
+    const PlayerData* const playerData;
+    const int id = 0;
+    const int stable_id = 0;
 
-    bool debug;
+    bool debug = false;
 
     HumanoidBase *humanoid;
     IController *controller;
-    IController *externalController;
+    HumanController *externalController;
 
-    bool isActive;
+    bool isActive = false;
 
-    unsigned long lastTouchTime_ms;
+    unsigned long lastTouchTime_ms = 0;
     e_TouchType lastTouchType;
 
     static int playerCount;
+    static int stablePlayerCount;
 
-    float fatigueFactorInv;
-    float confidenceFactor;
-
-    float averageStat;
+    float fatigueFactorInv = 0.0f;
 
     std::vector<Vector3> positionHistoryPerSecond; // resets too (on ResetSituation() calls)
 

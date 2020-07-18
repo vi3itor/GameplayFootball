@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -6,10 +19,10 @@
 
 #include "graphics_scene.hpp"
 
-#include "base/log.hpp"
-#include "base/utils.hpp"
+#include "../../base/log.hpp"
+#include "../../base/utils.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
+#include "../../managers/resourcemanagerpool.hpp"
 
 #include "rendering/r3d_messages.hpp"
 
@@ -25,50 +38,41 @@ namespace blunted {
 
   void GraphicsSystem::Initialize(const Properties &config) {
 
-    textureResourceManager = boost::shared_ptr < ResourceManager<Texture> > (new ResourceManager<Texture>("texture"));
-    vertexBufferResourceManager = boost::shared_ptr < ResourceManager<VertexBuffer> > (new ResourceManager<VertexBuffer>("vertexbuffer"));
-    ResourceManagerPool::GetInstance().RegisterManager(e_ResourceType_Texture, textureResourceManager);
-    ResourceManagerPool::GetInstance().RegisterManager(e_ResourceType_VertexBuffer, vertexBufferResourceManager);
-
     // start thread for renderer
-    if (config.Get("graphics3d_renderer", "opengl") == "opengl") renderer3DTask = new OpenGLRenderer3D();
+    std::string renderer = config.Get("graphics3d_renderer", "opengl");
+
+    if (renderer == "opengl" || renderer == "egl" || renderer == "osmesa")
+      renderer3DTask = new OpenGLRenderer3D();
+    if (renderer == "mock") renderer3DTask = new MockRenderer3D();
     width = config.GetInt("context_x", 1280);
     height = config.GetInt("context_y", 720);
     bpp = config.GetInt("context_bpp", 32);
     bool fullscreen = config.GetBool("context_fullscreen", false);
     renderer3DTask->Run();
 
-    boost::intrusive_ptr<Renderer3DMessage_CreateContext> createContext(new Renderer3DMessage_CreateContext(width, height, bpp, fullscreen));
-    renderer3DTask->messageQueue.PushMessage(createContext);
-    createContext->Wait();
+    Renderer3DMessage_CreateContext op(width, height, bpp, fullscreen);
+    op.Handle(renderer3DTask);
 
-    if (!createContext->success) {
+    if (!op.success) {
       Log(e_FatalError, "GraphicsSystem", "Initialize", "Could not create context");
     } else {
       Log(e_Notice, "GraphicsSystem", "Initialize", "Created context, resolution " + int_to_str(width) + " * " + int_to_str(height) + " @ " + int_to_str(bpp) + " bpp");
     }
 
     task = new GraphicsTask(this);
-    task->Run();
+  }
+
+
+  const screenshoot& GraphicsSystem::GetScreen() {
+    return renderer3DTask->GetScreen();
   }
 
   void GraphicsSystem::Exit() {
-    // shutdown system task
-    boost::intrusive_ptr<Message_Shutdown> shutdown(new Message_Shutdown());
-    task->messageQueue.PushMessage(shutdown);
-    shutdown->Wait();
-
-    task->Join();
     delete task;
     task = NULL;
 
-    textureResourceManager.reset();
-    vertexBufferResourceManager.reset();
-
     // shutdown renderer thread
-    boost::intrusive_ptr<Message_Shutdown> R3Dshutdown(new Message_Shutdown());
-    renderer3DTask->messageQueue.PushMessage(R3Dshutdown);
-    R3Dshutdown->Wait();
+    Message_Shutdown().Handle(renderer3DTask);
 
     renderer3DTask->Join();
     delete renderer3DTask;

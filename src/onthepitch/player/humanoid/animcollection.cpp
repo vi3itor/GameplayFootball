@@ -1,23 +1,38 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "animcollection.hpp"
 
-#include "utils/directoryparser.hpp"
+#include <cmath>
 
-#include "utils/animationextensions/footballanimationextension.hpp"
+#include "../../../utils/directoryparser.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
+#include "../../../utils/animationextensions/footballanimationextension.hpp"
 
-#include "utils/objectloader.hpp"
-#include "scene/objectfactory.hpp"
+#include "../../../managers/resourcemanagerpool.hpp"
+
+#include "../../../utils/objectloader.hpp"
+#include "../../../scene/objectfactory.hpp"
 
 #include "humanoid_utils.hpp"
 
 #include "humanoid.hpp"
 
-#include "main.hpp"
+#include "../../../main.hpp"
 
 void FillNodeMap(boost::intrusive_ptr<Node> targetNode, std::map < const std::string, boost::intrusive_ptr<Node> > &nodeMap) {
   //printf("%s\n", targetNode->GetName().c_str());
@@ -32,28 +47,6 @@ void FillNodeMap(boost::intrusive_ptr<Node> targetNode, std::map < const std::st
 }
 
 AnimCollection::AnimCollection(boost::shared_ptr<Scene3D> scene3D) : scene3D(scene3D) {
-  defString[0] = "";
-  defString[1] = "outgoing_special_state";
-  defString[2] = "incoming_special_state";
-  defString[3] = "specialvar1";
-  defString[4] = "specialvar2";
-  defString[5] = "type";
-  defString[6] = "trap";
-  defString[7] = "deflect";
-  defString[8] = "interfere";
-  defString[9] = "trip";
-  defString[10] = "shortpass";
-  defString[11] = "longpass";
-  defString[12] = "shot";
-  defString[13] = "sliding";
-  defString[14] = "movement";
-  defString[15] = "special";
-  defString[16] = "ballcontrol";
-  defString[17] = "highpass";
-  defString[18] = "catch";
-  defString[19] = "outgoing_retain_state";
-  defString[20] = "incoming_retain_state";
-
   maxIncomingBallDirectionDeviation = 0.25f * pi;
   maxOutgoingBallDirectionDeviation = 0.25f * pi;
 
@@ -190,8 +183,9 @@ void GenerateAutoAnims(const std::vector<Animation*> &templates, std::vector<Ani
 
         // max deceleration
         // use dot product to make sure "running 180 degrees" isn't considered "keeping the same velocity" and therefore legal.
-        float dot = Vector3(0, -1, 0).GetDotProduct(Vector3(0, -1, 0).GetRotated2D(angle)); // todo: this is optimizable (simple angle -> dot)
-        int veloIDDiff_dotted = round(outgoingVeloID * dot - incomingVeloID);
+        float dot = Vector3(0, -1, 0).GetDotProduct(Vector3(0, -1, 0).GetRotated2D(angle));
+        int veloIDDiff_dotted =
+            std::round(outgoingVeloID * dot - incomingVeloID);
         if (veloIDDiff_dotted < -3) legalAnim = false;
 
         if (incomingVeloID == 3 && outgoingVeloID == 1 && (fabs(outgoingBodyAngleT2) > 0.25f * pi + margin || fabs(angle) > 0.25f * pi + margin)) legalAnim = false; // no sprint to dribble with backwards body angle
@@ -298,7 +292,11 @@ void GenerateAutoAnims(const std::vector<Animation*> &templates, std::vector<Ani
               //bias = pow(bias, 0.7f); // move a bit earlier
               //bias = pow(bias, 0.2f + 0.6f * averageVeloFactor);
               //if (frame == frameCount - 2) printf("before: %f, ", bias);
-              bias = pow(bias, 1.0f * (0.3f + 0.4f * averageVeloFactor + 0.3f * NormalizedClamp(movementChangeMPS.GetLength(), 0.0f, 20.0f)));
+              bias = std::pow(
+                  bias,
+                  1.0f * (0.3f + 0.4f * averageVeloFactor +
+                          0.3f * NormalizedClamp(movementChangeMPS.GetLength(),
+                                                 0.0f, 20.0f)));
               //if (frame == frameCount - 2) printf("middle: %f, ", bias);
               bias = curve(bias, 0.7f); //0.3f// concentrate change in the middle of the anim
               //if (frame == frameCount - 2) printf("after: %f\n", bias);
@@ -306,13 +304,21 @@ void GenerateAutoAnims(const std::vector<Animation*> &templates, std::vector<Ani
 
               if (n == 1) { // body
                 // body orientation
-                Quaternion angleQuat; angleQuat.SetAngleAxis(angle * pow((bias * 0.7f + origBias * 0.3f), 1.0f), Vector3(0, 0, 1));
+                Quaternion angleQuat;
+                angleQuat.SetAngleAxis(
+                    angle * std::pow((bias * 0.7f + origBias * 0.3f), 1.0f),
+                    Vector3(0, 0, 1));
                 orientation = angleQuat * orientation;
 
                 // leaning
                 //movementChangeMPS *= (incomingVeloID + outgoingVeloID) / 6.0f;
                 movementChangeMPS *= 0.5f + 0.5f * ((anim1->GetIncomingMovement() * (1.0f - bias) + outgoingMovement * bias).GetLength() / sprintVelocity); // high velo = more leaning into the wind and such :p
-                Quaternion leanQuat; leanQuat.SetAngleAxis(movementChangeMPS.GetLength() * leanAmount * (0.5f + 0.5f * sin(origBias * pi)), Vector3(0, 1, 0).GetRotated2D(movementChangeMPS.GetNormalized(0).GetAngle2D()));
+                Quaternion leanQuat;
+                leanQuat.SetAngleAxis(
+                    movementChangeMPS.GetLength() * leanAmount *
+                        (0.5f + 0.5f * std::sin(origBias * pi)),
+                    Vector3(0, 1, 0).GetRotated2D(
+                        movementChangeMPS.GetNormalized(0).GetAngle2D()));
                 orientation = leanQuat * orientation;
               }
 
@@ -324,7 +330,10 @@ void GenerateAutoAnims(const std::vector<Animation*> &templates, std::vector<Ani
                 height = positionT1.coords[2] * (1.0f - bias) + positionT2.coords[2] * bias;
               }
 
-              gen->SetKeyFrame(nodeAnimsT1.at(n)->nodeName, int(floor(targetFrame)), orientation, cumulativePosition * (1.0f / animSpeedFactor) + Vector3(0, 0, height));
+              gen->SetKeyFrame(nodeAnimsT1.at(n)->nodeName,
+                               int(std::floor(targetFrame)), orientation,
+                               cumulativePosition *(1.0f / animSpeedFactor) +
+                                   Vector3(0, 0, height));
 
               prevFrame = frame;
               keyIter++;
@@ -385,6 +394,7 @@ void AnimCollection::Load(boost::filesystem::path directory) {
   DirectoryParser parser;
   std::vector<std::string> files;
   parser.Parse(directory / "/templates", "anim", files);
+  sort(files.begin(), files.end());
 
   Log(e_Notice, "AnimCollection", "Load", "Loading autogenerated animation templates");
 
@@ -424,7 +434,7 @@ void AnimCollection::Load(boost::filesystem::path directory) {
 
   files.clear();
   parser.Parse(directory, "anim", files);
-
+  sort(files.begin(), files.end());
   Log(e_Notice, "AnimCollection", "Load", "Loading animations");
 
   bool omitLuxuryAnims = true;
@@ -454,7 +464,7 @@ void AnimCollection::Load(boost::filesystem::path directory) {
         // duplicate dribble anims with > 45 degree body directions (either in or out) and convert duplicate to walking speed
         // this is because of the decision to allow 135 degree body directions ('walking backward') on walking velocities.
         // more correct (to get proper leg movement for walking velocities) would be to create separate anims for these, but i'm feeling lazy
-        if (animation->GetAnimType().compare("movement") == 0) {
+        if (animation->GetAnimType().compare(e_DefString_Movement) == 0) {
           if (fabs(animation->GetIncomingBodyAngle()) > 0.5 * pi || fabs(animation->GetOutgoingBodyAngle()) > 0.5 * pi) {
             if (FloatToEnumVelocity(animation->GetIncomingVelocity()) == e_Velocity_Dribble || FloatToEnumVelocity(animation->GetOutgoingVelocity()) == e_Velocity_Dribble) {
 
@@ -499,365 +509,300 @@ void AnimCollection::CrudeSelection(DataSet &dataSet, const CrudeSelectionQuery 
 
   for (int i = 0; i < animSize; i++) {
 
-    const std::string &animType = animations.at(i)->GetAnimType();
-
-    bool selectAnim = true;
-
+    e_DefString animType = animations.at(i)->GetAnimType();
 
     // select by TYPE
 
-    if (selectAnim) {
-      if (query.byFunctionType == true) {
-        if (_CheckFunctionType(animType, query.functionType) == false) selectAnim = false;
-      }
+    if (query.byFunctionType == true) {
+      if (_CheckFunctionType(animType, query.functionType) == false) continue;
     }
-
-/*
-    // select by FOOT
-
-    if (selectAnim) {
-      if (query.byFoot == true) {
-        if (animations.at(i)->GetCurrentFoot() != query.foot && FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity()) != e_Velocity_Idle) selectAnim = false;
-      }
-    }
-*/
-
 
     // select by INCOMING VELOCITY
 
-    if (selectAnim) {
-      if (query.byIncomingVelocity == true) {
+    if (query.byIncomingVelocity == true) {
 
-        e_Velocity animIncomingVelocity = FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity());
+      e_Velocity animIncomingVelocity = FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity());
 
-        if (query.incomingVelocity_Strict == false) {
+      if (query.incomingVelocity_Strict == false) {
 
-          selectAnim = true;
-          if (query.incomingVelocity_NoDribbleToIdle) {
-            if (animIncomingVelocity == e_Velocity_Idle && query.incomingVelocity == e_Velocity_Dribble) selectAnim = false;
-          }
-          if (animIncomingVelocity == e_Velocity_Idle && query.incomingVelocity == e_Velocity_Walk) selectAnim = false;
-          if (animIncomingVelocity == e_Velocity_Idle && query.incomingVelocity == e_Velocity_Sprint) selectAnim = false;
-          if (animIncomingVelocity == e_Velocity_Dribble && query.incomingVelocity == e_Velocity_Idle) selectAnim = false;
-          if (animIncomingVelocity == e_Velocity_Walk && query.incomingVelocity == e_Velocity_Idle) selectAnim = false;
-          if (animIncomingVelocity == e_Velocity_Sprint && query.incomingVelocity == e_Velocity_Idle) selectAnim = false;
+        if (query.incomingVelocity_NoDribbleToIdle) {
+          if (animIncomingVelocity == e_Velocity_Idle && query.incomingVelocity == e_Velocity_Dribble) continue;
+        }
+        if (animIncomingVelocity == e_Velocity_Idle && query.incomingVelocity == e_Velocity_Walk) continue;
+        if (animIncomingVelocity == e_Velocity_Idle && query.incomingVelocity == e_Velocity_Sprint) continue;
+        if (animIncomingVelocity == e_Velocity_Dribble && query.incomingVelocity == e_Velocity_Idle) continue;
+        if (animIncomingVelocity == e_Velocity_Walk && query.incomingVelocity == e_Velocity_Idle) continue;
+        if (animIncomingVelocity == e_Velocity_Sprint && query.incomingVelocity == e_Velocity_Idle) continue;
 
-          if (query.incomingVelocity_NoDribbleToSprint) {
-            if (animIncomingVelocity == e_Velocity_Sprint && query.incomingVelocity == e_Velocity_Dribble) selectAnim = false;
-          }
-
-          if (query.incomingVelocity_ForceLinearity) {
-            // disallow going from current -> slower/faster -> current; the complete section needs to be linear
-            float animIncomingVelocityFloat = RangeVelocity(animations.at(i)->GetIncomingVelocity());
-            float animOutgoingVelocityFloat = RangeVelocity(animations.at(i)->GetOutgoingVelocity());
-            float queryVelocityFloat = EnumToFloatVelocity(query.incomingVelocity);
-
-            // treat dribble and walk the same
-            if (FloatToEnumVelocity(animIncomingVelocityFloat) == e_Velocity_Dribble) animIncomingVelocityFloat = walkVelocity;
-            if (FloatToEnumVelocity(animOutgoingVelocityFloat) == e_Velocity_Dribble) animOutgoingVelocityFloat = walkVelocity;
-            if (FloatToEnumVelocity(queryVelocityFloat) == e_Velocity_Dribble) queryVelocityFloat = walkVelocity;
-
-            if (animIncomingVelocityFloat > std::max(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
-            if (animIncomingVelocityFloat < std::min(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
-          }
-
-        } else {
-          // strict
-          if (animIncomingVelocity != query.incomingVelocity) selectAnim = false;
+        if (query.incomingVelocity_NoDribbleToSprint) {
+          if (animIncomingVelocity == e_Velocity_Sprint && query.incomingVelocity == e_Velocity_Dribble) continue;
         }
 
-        // test: disallow idle -> moving and other way around
-        //e_Velocity animOutgoingVelocity = FloatToEnumVelocity(animations.at(i)->GetOutgoingVelocity());
-        //if (animIncomingVelocity == e_Velocity_Idle && animOutgoingVelocity != e_Velocity_Idle) selectAnim = false;
-        //if (animOutgoingVelocity == e_Velocity_Idle && animIncomingVelocity != e_Velocity_Idle) selectAnim = false;
+        if (query.incomingVelocity_ForceLinearity) {
+          // disallow going from current -> slower/faster -> current; the complete section needs to be linear
+          float animIncomingVelocityFloat = RangeVelocity(animations.at(i)->GetIncomingVelocity());
+          float animOutgoingVelocityFloat = RangeVelocity(animations.at(i)->GetOutgoingVelocity());
+          float queryVelocityFloat = EnumToFloatVelocity(query.incomingVelocity);
+
+          // treat dribble and walk the same
+          if (FloatToEnumVelocity(animIncomingVelocityFloat) == e_Velocity_Dribble) animIncomingVelocityFloat = walkVelocity;
+          if (FloatToEnumVelocity(animOutgoingVelocityFloat) == e_Velocity_Dribble) animOutgoingVelocityFloat = walkVelocity;
+          if (FloatToEnumVelocity(queryVelocityFloat) == e_Velocity_Dribble) queryVelocityFloat = walkVelocity;
+
+          if (animIncomingVelocityFloat > std::max(queryVelocityFloat, animOutgoingVelocityFloat)) continue;
+          if (animIncomingVelocityFloat < std::min(queryVelocityFloat, animOutgoingVelocityFloat)) continue;
+        }
+
+      } else {
+        // strict
+        if (animIncomingVelocity != query.incomingVelocity) continue;
       }
+
+      // test: disallow idle -> moving and other way around
+      //e_Velocity animOutgoingVelocity = FloatToEnumVelocity(animations.at(i)->GetOutgoingVelocity());
+      //if (animIncomingVelocity == e_Velocity_Idle && animOutgoingVelocity != e_Velocity_Idle) continue;
+      //if (animOutgoingVelocity == e_Velocity_Idle && animIncomingVelocity != e_Velocity_Idle) continue;
     }
 
     // test: disable all sprint anims
     // e_Velocity animIncomingVelocity = FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity());
     // e_Velocity animOutgoingVelocity = FloatToEnumVelocity(animations.at(i)->GetOutgoingVelocity());
-    // if (animIncomingVelocity == e_Velocity_Sprint || animOutgoingVelocity == e_Velocity_Sprint) selectAnim = false;
+    // if (animIncomingVelocity == e_Velocity_Sprint || animOutgoingVelocity == e_Velocity_Sprint) continue;
 
 
     // select by OUTGOING VELOCITY
 
-    if (selectAnim) {
-      if (query.byOutgoingVelocity == true) {
-        if (FloatToEnumVelocity(animations.at(i)->GetOutgoingVelocity()) != query.outgoingVelocity) selectAnim = false;
-      }
+    if (query.byOutgoingVelocity == true) {
+      if (FloatToEnumVelocity(animations.at(i)->GetOutgoingVelocity()) != query.outgoingVelocity) continue;
     }
-
 
     // CULL WRONG ROTATIONAL SIDE
 
-    if (selectAnim) {
-      if (query.bySide == true) {
+    if (query.bySide == true) {
 
-        Vector3 animIncomingDirection = animations.at(i)->GetIncomingBodyDirection();
+      Vector3 animIncomingDirection = animations.at(i)->GetIncomingBodyDirection();
 
-        // find out in what direction the anim rotates
-        Vector3 animOutgoingDirection = animations.at(i)->GetOutgoingDirection().GetRotated2D(animations.at(i)->GetOutgoingBodyAngle());
-        radian animTurnAngle = animOutgoingDirection.GetAngle2D(animIncomingDirection);
+      // find out in what direction the anim rotates
+      Vector3 animOutgoingDirection = animations.at(i)->GetOutgoingDirection().GetRotated2D(animations.at(i)->GetOutgoingBodyAngle());
+      radian animTurnAngle = animOutgoingDirection.GetAngle2D(animIncomingDirection);
 
-        // anim should not pass through opposite (180 deg) of desired look angle
-        Vector3 fencedDirection = query.lookAtVecRel.GetRotated2D(pi);
+      // anim should not pass through opposite (180 deg) of desired look angle
+      Vector3 fencedDirection = query.lookAtVecRel.GetRotated2D(pi);
 
-        if (fabs(animTurnAngle) > 0.06f * pi) { // threshold
-          e_Side animSide = (animTurnAngle > 0) ? e_Side_Left : e_Side_Right;
+      if (fabs(animTurnAngle) > 0.06f * pi) { // threshold
+        e_Side animSide = (animTurnAngle > 0) ? e_Side_Left : e_Side_Right;
 
-          radian animIncomingToFenceAngle = fencedDirection.GetAngle2D(animIncomingDirection);
-          radian queryIncomingToFenceAngle = fencedDirection.GetAngle2D(query.incomingBodyDirection);
-          radian fenceToOutgoingAngle = animOutgoingDirection.GetAngle2D(fencedDirection);
+        radian animIncomingToFenceAngle = fencedDirection.GetAngle2D(animIncomingDirection);
+        radian queryIncomingToFenceAngle = fencedDirection.GetAngle2D(query.incomingBodyDirection);
+        radian fenceToOutgoingAngle = animOutgoingDirection.GetAngle2D(fencedDirection);
 
-          e_Side animIncomingToFenceSide = (animIncomingToFenceAngle > 0) ? e_Side_Left : e_Side_Right;
-          e_Side queryIncomingToFenceSide = (queryIncomingToFenceAngle > 0) ? e_Side_Left : e_Side_Right;
-          e_Side fenceToAnimOutgoingSide = (fenceToOutgoingAngle > 0) ? e_Side_Left : e_Side_Right;
+        e_Side animIncomingToFenceSide = (animIncomingToFenceAngle > 0) ? e_Side_Left : e_Side_Right;
+        e_Side queryIncomingToFenceSide = (queryIncomingToFenceAngle > 0) ? e_Side_Left : e_Side_Right;
+        e_Side fenceToAnimOutgoingSide = (fenceToOutgoingAngle > 0) ? e_Side_Left : e_Side_Right;
 
-          // passes through fence! n000!
-          if (animIncomingToFenceSide  == animSide && fenceToAnimOutgoingSide == animSide && fabs(animIncomingToFenceAngle + fenceToOutgoingAngle) < pi) selectAnim = false;
-          if (queryIncomingToFenceSide == animSide && fenceToAnimOutgoingSide == animSide && fabs(queryIncomingToFenceSide + fenceToOutgoingAngle) < pi) selectAnim = false;
-        }
-
+        // passes through fence! n000!
+        if (animIncomingToFenceSide  == animSide && fenceToAnimOutgoingSide == animSide && fabs(animIncomingToFenceAngle + fenceToOutgoingAngle) < pi) continue;
+        if (queryIncomingToFenceSide == animSide && fenceToAnimOutgoingSide == animSide && fabs(queryIncomingToFenceSide + fenceToOutgoingAngle) < pi) continue;
       }
     }
-
-
-/*
-    // select by OUTGOING ANGLE
-
-    // can't be used, wanting to go 180 deg might need a 0 deg anim first (deccelerate)
-
-    if (selectAnim) {
-      if (query.byOutgoingAngle == true) {
-        if (fabs(animations.at(i)->GetOutgoingAngle() - query.outgoingAngle) > pi * 0.5) selectAnim = false;
-      }
-    }
-*/
 
     // select by RETAIN BALL
 
-    if (selectAnim) {
-      if (query.byPickupBall == true) {
-        if ((animations.at(i)->GetVariable("outgoing_retain_state") == "" && query.pickupBall == true) ||
-            (animations.at(i)->GetVariable("outgoing_retain_state") != "" && query.pickupBall == false)) {
-          selectAnim = false;
-        }
+    if (query.byPickupBall == true) {
+      if ((animations.at(i)->GetVariable("outgoing_retain_state") == "" && query.pickupBall == true) ||
+          (animations.at(i)->GetVariable("outgoing_retain_state") != "" && query.pickupBall == false)) {
+        continue;
       }
     }
 
 
     // select LAST DITCH ANIMS
 
-    if (selectAnim) {
-      if (query.allowLastDitchAnims == false) {
-        if (animations.at(i)->GetVariable("lastditch") == "true") {
-          selectAnim = false;
-        }
+    if (query.allowLastDitchAnims == false) {
+      if (animations.at(i)->GetVariable("lastditch") == "true") {
+        continue;
       }
     }
 
 
     // select by INCOMING BODY ANGLE
 
-    if (selectAnim) {
+    if (query.byIncomingBodyDirection == true && !(query.byIncomingVelocity == true && query.incomingVelocity == e_Velocity_Idle)) {
 
-      if (query.byIncomingBodyDirection == true && !(query.byIncomingVelocity == true && query.incomingVelocity == e_Velocity_Idle)) {
+      radian marginRadians = 0.06f * pi; // anims can deviate a few degrees from the desired (quantized) directions
 
-        radian marginRadians = 0.06f * pi; // anims can deviate a few degrees from the desired (quantized) directions
+      if (FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity()) != e_Velocity_Idle) {
 
-        if (FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity()) != e_Velocity_Idle) {
-
-          Vector3 incomingBodyDir = animations.at(i)->GetIncomingBodyDirection();
+        Vector3 incomingBodyDir = animations.at(i)->GetIncomingBodyDirection();
 
 /* this is implicitly happening already because of the section after this one anyway, so disable *todo: is it?
           //if (selectAnim) {
             if (query.incomingBodyDirection_Strict == true) { // == non-movement, atm
               // strict
-              //if (fabs(incomingBodyDir.GetAngle2D(Vector3(0, -1, 0))) > fabs(query.incomingBodyDirection.GetAngle2D(Vector3(0, -1, 0))) + marginRadians) selectAnim = false;
+              //if (fabs(incomingBodyDir.GetAngle2D(Vector3(0, -1, 0))) > fabs(query.incomingBodyDirection.GetAngle2D(Vector3(0, -1, 0))) + marginRadians) continue;
               // allow 45
-              //if (fabs(incomingBodyDir.GetAngle2D(Vector3(0, -1, 0))) > fabs(query.incomingBodyDirection.GetAngle2D(Vector3(0, -1, 0))) + 0.25f * pi + marginRadians) selectAnim = false;
+              //if (fabs(incomingBodyDir.GetAngle2D(Vector3(0, -1, 0))) > fabs(query.incomingBodyDirection.GetAngle2D(Vector3(0, -1, 0))) + 0.25f * pi + marginRadians) continue;
 
               //} else {
-              // if (fabs(query.incomingBodyDirection.GetAngle2D(animations.at(i)->GetIncomingBodyDirection())) > marginRadians) selectAnim = false;
+              // if (fabs(query.incomingBodyDirection.GetAngle2D(animations.at(i)->GetIncomingBodyDirection())) > marginRadians) continue;
               //}
             }
           //}
 */
-          if (selectAnim) {
-            // disallow larger than x radians diff
-            //if (fabs(query.incomingBodyDirection.GetAngle2D(animations.at(i)->GetIncomingBodyDirection())) > marginRadians) selectAnim = false;
-            // disallow larger incoming than current
-            if (fabs(FixAngle(animations.at(i)->GetIncomingBodyDirection().GetAngle2D())) > fabs(FixAngle(query.incomingBodyDirection.GetAngle2D())) + marginRadians) selectAnim = false;
-          }
+        // disallow larger than x radians diff
+        //if (fabs(query.incomingBodyDirection.GetAngle2D(animations.at(i)->GetIncomingBodyDirection())) > marginRadians) continue;
+        // disallow larger incoming than current
+        if (fabs(FixAngle(animations.at(i)->GetIncomingBodyDirection().GetAngle2D())) > fabs(FixAngle(query.incomingBodyDirection.GetAngle2D())) + marginRadians) continue;
 
-          if (selectAnim) {
 
-            // absolute outgoing body dir is body dir + outgoing dir
-            Vector3 outgoingBodyDir = Vector3(0, -1, 0).GetRotated2D(animations.at(i)->GetOutgoingBodyAngle() + animations.at(i)->GetOutgoingAngle());
+        // absolute outgoing body dir is body dir + outgoing dir
+        Vector3 outgoingBodyDir = Vector3(0, -1, 0).GetRotated2D(animations.at(i)->GetOutgoingBodyAngle() + animations.at(i)->GetOutgoingAngle());
 
-            // disallow > ~135 degrees (not really needed, i guess)
-            //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(query.incomingBodyDirection)) > 0.75f * pi + marginRadians) selectAnim = false;
-            //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(query.incomingBodyDirection)) > 0.5f * pi + marginRadians) selectAnim = false;
+        // disallow > ~135 degrees (not really needed, i guess)
+        //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(query.incomingBodyDirection)) > 0.75f * pi + marginRadians) continue;
+        //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(query.incomingBodyDirection)) > 0.5f * pi + marginRadians) continue;
 
-            // disallow > ~90 degrees larger incoming than current
-            //if (fabs(FixAngle(animations.at(i)->GetIncomingBodyDirection().GetAngle2D())) > fabs(FixAngle(query.incomingBodyDirection.GetAngle2D())) + 0.5f * pi + marginRadians) selectAnim = false;
-            // disallow > ~90 degrees different incoming than current
-            //if (fabs(fabs(FixAngle(animations.at(i)->GetIncomingBodyDirection().GetAngle2D())) - fabs(FixAngle(query.incomingBodyDirection.GetAngle2D()))) > 0.5f * pi + marginRadians) selectAnim = false;
-            //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(Vector3(0, -1, 0)) - query.incomingBodyDirection.GetAngle2D(Vector3(0, -1, 0))) > 0.5f * pi + marginRadians) selectAnim = false;
-            // this version is not just moar beautiful, but also allows for -135 to 135 deg and vice versa
-            if (query.incomingBodyDirection_Strict == true) {
-              if (fabs(incomingBodyDir.GetAngle2D(query.incomingBodyDirection)) > marginRadians) selectAnim = false;
-            } else {
-              if (fabs(incomingBodyDir.GetAngle2D(query.incomingBodyDirection)) > 0.5f * pi + marginRadians) selectAnim = false;
-            }
-
-            // disallow > ~135 degrees between query incoming and abs outgoing body dir (kills 180 deg anims!)
-            //if (fabs(outgoingBodyDir.GetAngle2D(query.incomingBodyDirection)) > 0.75f * pi + marginRadians) selectAnim = false;
-
-            if (query.incomingBodyDirection_ForceLinearity) {
-              // if anim incoming body dir == between (including) query incoming and anim outgoing dir, then this anim is legal (or rather: won't look idiotic)
-              // how do we check this?
-              // 1. if we look at the smallest angles between (anim incoming -> query incoming) and (anim incoming -> anim outgoing), one has to be positive, the other negative.
-              // 2. the (absolute) angles added up have to be < pi radians. else, we could be on the 'other side' of the 'virtual half circle' and still have the former condition met
-
-              radian shortestAngle1 = incomingBodyDir.GetAngle2D(outgoingBodyDir);
-              radian shortestAngle2 = incomingBodyDir.GetAngle2D(query.incomingBodyDirection);
-              if ((shortestAngle1 >  marginRadians && shortestAngle2 >  marginRadians) ||
-                  (shortestAngle1 < -marginRadians && shortestAngle2 < -marginRadians)) {
-                selectAnim = false;
-              }
-              if (fabs(shortestAngle1) + fabs(shortestAngle2) > pi + marginRadians) selectAnim = false;
-
-            }
-
-          }
+        // disallow > ~90 degrees larger incoming than current
+        //if (fabs(FixAngle(animations.at(i)->GetIncomingBodyDirection().GetAngle2D())) > fabs(FixAngle(query.incomingBodyDirection.GetAngle2D())) + 0.5f * pi + marginRadians) continue;
+        // disallow > ~90 degrees different incoming than current
+        //if (fabs(fabs(FixAngle(animations.at(i)->GetIncomingBodyDirection().GetAngle2D())) - fabs(FixAngle(query.incomingBodyDirection.GetAngle2D()))) > 0.5f * pi + marginRadians) continue;
+        //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(Vector3(0, -1, 0)) - query.incomingBodyDirection.GetAngle2D(Vector3(0, -1, 0))) > 0.5f * pi + marginRadians) continue;
+        // this version is not just moar beautiful, but also allows for -135 to 135 deg and vice versa
+        if (query.incomingBodyDirection_Strict == true) {
+          if (fabs(incomingBodyDir.GetAngle2D(query.incomingBodyDirection)) > marginRadians) continue;
+        } else {
+          if (fabs(incomingBodyDir.GetAngle2D(query.incomingBodyDirection)) > 0.5f * pi + marginRadians) continue;
         }
 
-        else if (FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity()) == e_Velocity_Idle) {
+        // disallow > ~135 degrees between query incoming and abs outgoing body dir (kills 180 deg anims!)
+        //if (fabs(outgoingBodyDir.GetAngle2D(query.incomingBodyDirection)) > 0.75f * pi + marginRadians) continue;
 
-          // allow only same angle (which is moving anims with 0 outgoing body angle. since @ idle, that will become their only angle)
-          //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(query.incomingBodyDirection)) > marginRadians) selectAnim = false;
-          if (query.incomingBodyDirection_Strict == true) {
-            if (fabs(Vector3(0, -1, 0).GetAngle2D(query.incomingBodyDirection)) > marginRadians) selectAnim = false;
-          } else {
-            if (fabs(Vector3(0, -1, 0).GetAngle2D(query.incomingBodyDirection)) > 0.25f * pi + marginRadians) selectAnim = false;
+        if (query.incomingBodyDirection_ForceLinearity) {
+          // if anim incoming body dir == between (including) query incoming and anim outgoing dir, then this anim is legal (or rather: won't look idiotic)
+          // how do we check this?
+          // 1. if we look at the smallest angles between (anim incoming -> query incoming) and (anim incoming -> anim outgoing), one has to be positive, the other negative.
+          // 2. the (absolute) angles added up have to be < pi radians. else, we could be on the 'other side' of the 'virtual half circle' and still have the former condition met
+
+          radian shortestAngle1 = incomingBodyDir.GetAngle2D(outgoingBodyDir);
+          radian shortestAngle2 = incomingBodyDir.GetAngle2D(query.incomingBodyDirection);
+          if ((shortestAngle1 >  marginRadians && shortestAngle2 >  marginRadians) ||
+              (shortestAngle1 < -marginRadians && shortestAngle2 < -marginRadians)) {
+            continue;
           }
+          if (fabs(shortestAngle1) + fabs(shortestAngle2) > pi + marginRadians) continue;
 
+        }
+
+      } else if (FloatToEnumVelocity(animations.at(i)->GetIncomingVelocity()) == e_Velocity_Idle) {
+
+        // allow only same angle (which is moving anims with 0 outgoing body angle. since @ idle, that will become their only angle)
+        //if (fabs(animations.at(i)->GetIncomingBodyDirection().GetAngle2D(query.incomingBodyDirection)) > marginRadians) continue;
+        if (query.incomingBodyDirection_Strict == true) {
+          if (fabs(Vector3(0, -1, 0).GetAngle2D(query.incomingBodyDirection)) > marginRadians) continue;
+        } else {
+          if (fabs(Vector3(0, -1, 0).GetAngle2D(query.incomingBodyDirection)) > 0.25f * pi + marginRadians) continue;
         }
 
       }
-
-      // no backwards body angles (test) if (fabs(animations.at(i)->GetIncomingBodyAngle()) > 0.5 * pi || fabs(animations.at(i)->GetOutgoingBodyAngle()) > 0.5 * pi) selectAnim = false;
+      // no backwards body angles (test) if (fabs(animations.at(i)->GetIncomingBodyAngle()) > 0.5 * pi || fabs(animations.at(i)->GetOutgoingBodyAngle()) > 0.5 * pi) continue;
     }
+
 
 
     // select by INCOMING BALL DIRECTION
 
-    if (selectAnim) {
-      if (query.byIncomingBallDirection == true) {
-        Vector3 animBallDirection = GetVectorFromString(animations.at(i)->GetVariable("incomingballdirection"));
-        if (animBallDirection.GetLength() < 0.1f) {
-          Log(e_FatalError, "AnimCollection", "Crudeselection", "Anim " + animations.at(i)->GetName() + " missing incoming ball direction");
-        }
-        if (animBallDirection.GetLength() != 0.0f && query.incomingBallDirection.GetLength() != 0.0f) {
+    if (query.byIncomingBallDirection == true) {
+      Vector3 animBallDirection = GetVectorFromString(animations.at(i)->GetVariable("incomingballdirection"));
+      if (animBallDirection.GetLength() < 0.1f) {
+        Log(e_FatalError, "AnimCollection", "Crudeselection", "Anim " + animations.at(i)->GetName() + " missing incoming ball direction");
+      }
+      if (animBallDirection.GetLength() != 0.0f && query.incomingBallDirection.GetLength() != 0.0f) {
 
-          // decimate height diff
-          animBallDirection.coords[2] *= 0.4f;
-          animBallDirection.Normalize();
-          Vector3 adaptedIncomingBallDirection = query.incomingBallDirection;
-          adaptedIncomingBallDirection.coords[2] *= 0.4f;
-          adaptedIncomingBallDirection.Normalize();
+        // decimate height diff
+        animBallDirection.coords[2] *= 0.4f;
+        animBallDirection.Normalize();
+        Vector3 adaptedIncomingBallDirection = query.incomingBallDirection;
+        adaptedIncomingBallDirection.coords[2] *= 0.4f;
+        adaptedIncomingBallDirection.Normalize();
 
-          //float ballDirectionSimilarity = adaptedIncomingBallDirection.GetDotProduct(animBallDirection);// * 0.5 + 0.5;
-          radian ballDirectionAngle = fabs(adaptedIncomingBallDirection.GetAngle2D(animBallDirection));
-          //printf("%s\n", animations.at(i)->GetName().c_str());
-          //query.incomingBallDirection.Print();
-          //animBallDirection.Print();
-          //printf("%f\n", ballDirectionDiff);
-          radian maxDeviation = fabs(atof(animations.at(i)->GetVariable("incomingballdirection_maxdeviation").c_str()) * pi);
-          if (maxDeviation == 0.0f) {
-            maxDeviation = maxIncomingBallDirectionDeviation;//0.45f;
-            if (animType.compare(defString[e_DefString_Deflect]) == 0) maxDeviation = 0.4f * pi;
-          }
-          if (ballDirectionAngle > maxDeviation) selectAnim = false;
+        //float ballDirectionSimilarity = adaptedIncomingBallDirection.GetDotProduct(animBallDirection);// * 0.5 + 0.5;
+        radian ballDirectionAngle = fabs(adaptedIncomingBallDirection.GetAngle2D(animBallDirection));
+        //printf("%s\n", animations.at(i)->GetName().c_str());
+        //query.incomingBallDirection.Print();
+        //animBallDirection.Print();
+        //printf("%f\n", ballDirectionDiff);
+        radian maxDeviation = fabs(atof(animations.at(i)->GetVariable("incomingballdirection_maxdeviation").c_str()) * pi);
+        if (maxDeviation == 0.0f) {
+          maxDeviation = maxIncomingBallDirectionDeviation;//0.45f;
+          if (animType == e_DefString_Deflect) maxDeviation = 0.4f * pi;
         }
+        if (ballDirectionAngle > maxDeviation) continue;
       }
     }
 
 
     // select by OUTGOING BALL DIRECTION
 
-    if (selectAnim) {
-      if (query.byOutgoingBallDirection == true) {
-        Vector3 animBallDirection = GetVectorFromString(animations.at(i)->GetVariable("balldirection"));
-        animBallDirection.Normalize(Vector3(0));
-        //printf("%s\n", animations.at(i)->GetName().c_str());
-        //float ballDirectionSimilarity = query.outgoingBallDirection.Get2D().GetNormalized(animBallDirection).GetDotProduct(animBallDirection);
-        radian ballDirectionAngle = fabs(query.outgoingBallDirection.Get2D().GetNormalized(animBallDirection).GetAngle2D(animBallDirection));
-        //query.outgoingBallDirection.Print();
-        //animBallDirection.Print();
-        //printf("%f\n", ballDirectionDiff);
-        radian maxDeviation = fabs(atof(animations.at(i)->GetVariable("outgoingballdirection_maxdeviation").c_str()) * pi);
-        if (maxDeviation == 0.0) {
-          maxDeviation = maxOutgoingBallDirectionDeviation;
-        }
-        if (ballDirectionAngle > maxDeviation) selectAnim = false;
+    if (query.byOutgoingBallDirection == true) {
+      Vector3 animBallDirection = GetVectorFromString(animations.at(i)->GetVariable("balldirection"));
+      animBallDirection.Normalize(Vector3(0));
+      //printf("%s\n", animations.at(i)->GetName().c_str());
+      //float ballDirectionSimilarity = query.outgoingBallDirection.Get2D().GetNormalized(animBallDirection).GetDotProduct(animBallDirection);
+      radian ballDirectionAngle = fabs(query.outgoingBallDirection.Get2D().GetNormalized(animBallDirection).GetAngle2D(animBallDirection));
+      //query.outgoingBallDirection.Print();
+      //animBallDirection.Print();
+      //printf("%f\n", ballDirectionDiff);
+      radian maxDeviation = fabs(atof(animations.at(i)->GetVariable("outgoingballdirection_maxdeviation").c_str()) * pi);
+      if (maxDeviation == 0.0) {
+        maxDeviation = maxOutgoingBallDirectionDeviation;
       }
+      if (ballDirectionAngle > maxDeviation) continue;
     }
 
 
     // select by PROPERTIES
 
-    if (selectAnim) {
-      if (query.properties.Get("incoming_special_state").compare(animations.at(i)->GetVariable("incoming_special_state")) != 0) selectAnim = false;
-      // hax: allow switching of hands (except for deflect anims) (in future, maybe make special case for 'both hands at the same time')
-      if ((query.functionType == e_FunctionType_Deflect || ((query.properties.Get("incoming_retain_state").compare("") != 0) != (animations.at(i)->GetVariable("incoming_retain_state").compare("") != 0))) &&
-          query.properties.Get("incoming_retain_state").compare(animations.at(i)->GetVariable("incoming_retain_state")) != 0) selectAnim = false;
-      if (atof(query.properties.Get("specialvar1").c_str()) != atof(animations.at(i)->GetVariable("specialvar1").c_str())) selectAnim = false;
-      if (atof(query.properties.Get("specialvar2").c_str()) != atof(animations.at(i)->GetVariable("specialvar2").c_str())) selectAnim = false;
-    }
+    if (query.properties.Get("incoming_special_state").compare(animations.at(i)->GetVariable("incoming_special_state")) != 0) continue;
+    // hax: allow switching of hands (except for deflect anims) (in future, maybe make special case for 'both hands at the same time')
+    if ((query.functionType == e_FunctionType_Deflect || ((query.properties.Get("incoming_retain_state").compare("") != 0) != (animations.at(i)->GetVariable("incoming_retain_state").compare("") != 0))) &&
+        query.properties.Get("incoming_retain_state").compare(animations.at(i)->GetVariable("incoming_retain_state")) != 0) continue;
+    if (atof(query.properties.Get("specialvar1").c_str()) != atof(animations.at(i)->GetVariable("specialvar1").c_str())) continue;
+    if (atof(query.properties.Get("specialvar2").c_str()) != atof(animations.at(i)->GetVariable("specialvar2").c_str())) continue;
 
 
     // select by TRIP TYPE
 
-    if (selectAnim) {
-      if (query.byTripType == true) {
-        if (int(round(atof(animations.at(i)->GetVariable("triptype").c_str()))) != query.tripType) selectAnim = false;
-      }
+    if (query.byTripType == true) {
+      if (int(round(atof(animations.at(i)->GetVariable("triptype").c_str()))) != query.tripType) continue;
     }
 
 
     // select by FORCED FOOT
-    // todonow: unit test! not sure if working correctly
 
-    if (selectAnim) {
-      if (query.heedForcedFoot == true) {
 
-        std::string forcedFoot = animations.at(i)->GetVariable("forcedfoot");
-        int which = 0;
-        if (forcedFoot.compare("strong") == 0) which = 1;
-        else if (forcedFoot.compare("weak") == 0) which = 2;
-        if (which != 0) {
+    if (query.heedForcedFoot == true) {
 
-          std::string touchFoot = animations.at(i)->GetVariable("touchfoot");
-          e_Foot animFoot = e_Foot_Right;
-          if (touchFoot.compare("left") == 0) animFoot = e_Foot_Left;
+      std::string forcedFoot = animations.at(i)->GetVariable("forcedfoot");
+      int which = 0;
+      if (forcedFoot.compare("strong") == 0) which = 1;
+      else if (forcedFoot.compare("weak") == 0) which = 2;
+      if (which != 0) {
+
+        std::string touchFoot = animations.at(i)->GetVariable("touchfoot");
+        e_Foot animFoot = e_Foot_Right;
+        if (touchFoot.compare("left") == 0) animFoot = e_Foot_Left;
 
           // for mirrored anims that, therefore, don't start with right foot
-          if (animations.at(i)->GetCurrentFoot() == e_Foot_Left) {
-            if (animFoot == e_Foot_Left) animFoot = e_Foot_Right; else animFoot = e_Foot_Left;
-          }
-
-          if (which == 1 && query.strongFoot != animFoot) selectAnim = false;
-          if (which == 2 && query.strongFoot == animFoot) selectAnim = false;
-          //if (!selectAnim) printf("deleting %s\n", animations.at(i)->GetName().c_str());
+        if (animations.at(i)->GetCurrentFoot() == e_Foot_Left) {
+          if (animFoot == e_Foot_Left) animFoot = e_Foot_Right; else animFoot = e_Foot_Left;
         }
+
+        if (which == 1 && query.strongFoot != animFoot) continue;
+        if (which == 2 && query.strongFoot == animFoot) continue;
+        //if (!selectAnim) printf("deleting %s\n", animations.at(i)->GetName().c_str());
       }
     }
-
-
-    if (selectAnim) dataSet.push_back(i);
-
+    dataSet.push_back(i);
   }
 }
 
@@ -975,7 +920,7 @@ int AddExtraTouches(Animation* animation, boost::intrusive_ptr<Node> playerNode,
 
 float CalculateAnimDifficulty(Animation *animation, float &absoluteDifficulty) {
   Vector3 animBallPos;
-  int animTouchFrame;
+  int animTouchFrame = 0;
   bool isTouch = boost::static_pointer_cast<FootballAnimationExtension>(animation->GetExtension("football"))->GetFirstTouch(animBallPos, animTouchFrame);
 
   float bodyDirDifficulty = clamp(fabs(animation->GetIncomingBodyDirection().GetAngle2D(animation->GetOutgoingBodyDirection()) / pi), 0.0, 1.0);
@@ -987,8 +932,12 @@ float CalculateAnimDifficulty(Animation *animation, float &absoluteDifficulty) {
   float veloDifficulty = veloChangeDifficulty * 0.5 + accelDifficulty * 0.5; // decelerating is easier than accelerating
 
   float averageVelocity = clamp((animation->GetIncomingVelocity() + animation->GetOutgoingVelocity()) / (sprintVelocity * 2.0), 0.0, 1.0);
-  float movementDifficulty = clamp((animation->GetIncomingMovement() - animation->GetOutgoingMovement()).GetLength() / sprintVelocity, 0.0, 1.0) *
-                             pow(averageVelocity, 2.0f);
+  float movementDifficulty = clamp((animation->GetIncomingMovement() -
+                                    animation->GetOutgoingMovement())
+                                           .GetLength() /
+                                       sprintVelocity,
+                                   0.0, 1.0) *
+                             std::pow(averageVelocity, 2.0f);
 
   float bodyDirDifficultyWeight = 0.5f;
   float directionDifficultyWeight = 1.0f;
@@ -1031,153 +980,17 @@ float CalculateAnimDifficulty(Animation *animation, float &absoluteDifficulty) {
   return expectedFrameCount;
 }
 
-void Slowdown(Animation *animation, float veloFactor, float expectedFrameCount, bool debug = false) {
-  // stretches animations without changing their velocities
-
-  assert(veloFactor >= 0.1f);
-  assert(veloFactor <= 1.0f);
-
-  int insertedFrames = 0.0;
-  Quaternion orientation; // dud
-  float power; // dud
-  Vector3 position;
-
-  int targetFrameCount = clamp(round(expectedFrameCount), animation->GetEffectiveFrameCount(), 1000000); // will not come out perfectly correct, because we can only add between frames (not before first/after last)
-
-  if (targetFrameCount > animation->GetFrameCount()) {
-    float insertsPerFrame = ((float)targetFrameCount / (float)animation->GetFrameCount()) - 1.0;
-    int originalFrameCount = animation->GetFrameCount();
-
-    float overflowCounter = insertsPerFrame; // when do we need to insert a frame?
-
-    e_Velocity originalIncomingVelocity = FloatToEnumVelocity(animation->GetIncomingVelocity());
-    e_Velocity originalOutgoingVelocity = FloatToEnumVelocity(animation->GetOutgoingVelocity());
-
-    for (int frame = 1; frame < animation->GetFrameCount(); frame++) {
-
-      while (overflowCounter >= 1.0f) {
-        animation->Shift(frame, 1);
-        overflowCounter -= 1.0f;
-
-        frame++;
-        insertedFrames++;
-      }
-
-      float currentShiftFactor = (float)(frame + insertedFrames) / (float)frame;
-
-      // stretch position to retain proper velocity
-      bool isFrame = animation->GetKeyFrame("player", frame, orientation, position);
-      if (isFrame) {
-        position.coords[0] *= currentShiftFactor;
-        position.coords[1] *= currentShiftFactor;
-        animation->SetKeyFrame("player", frame, orientation, position);
-      }
-      isFrame = animation->GetExtension("football")->GetKeyFrame(frame, orientation, position, power);
-      if (isFrame) {
-        position.coords[0] *= currentShiftFactor;
-        position.coords[1] *= currentShiftFactor;
-        animation->GetExtension("football")->SetKeyFrame(frame, orientation, position, power);
-      }
-
-      //printf("%f\n", currentShiftFactor);
-      overflowCounter += insertsPerFrame;
-    }
-
-    if (debug) {
-      if (FloatToEnumVelocity(animation->GetIncomingVelocity()) != originalIncomingVelocity) printf("incoming: %s: %f to %f\n", animation->GetName().c_str(), EnumToFloatVelocity(originalIncomingVelocity), RangeVelocity(animation->GetIncomingVelocity()));
-      if (FloatToEnumVelocity(animation->GetOutgoingVelocity()) != originalOutgoingVelocity) printf("outgoing: %s: %f to %f\n", animation->GetName().c_str(), EnumToFloatVelocity(originalOutgoingVelocity), RangeVelocity(animation->GetOutgoingVelocity()));
-    }
-
-  }
-
-}
-
-void SmoothPositions(Animation *animation, bool convertAngledDribbleToWalk) {
-
-  float bias = 1.0, exp = 1.0;
-
-  if (animation->GetAnimType().compare("movement") == 0) {
-    bias = 0.5;
-    exp = 0.8 + pow(clamp(animation->GetOutgoingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.5) * 0.4 +
-              + pow(clamp(animation->GetOutgoingVelocity() - animation->GetIncomingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.3) * 0.4;
-  } else if (animation->GetAnimType().compare("ballcontrol") == 0) {
-    bias = 0.3;
-    exp = 0.9 + pow(clamp(animation->GetOutgoingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.5) * 0.5 +
-              + pow(clamp(animation->GetOutgoingVelocity() - animation->GetIncomingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.3) * 0.5;
-  } else if (animation->GetAnimType().compare("trap") == 0) {
-    bias = 0.3;
-    exp = 0.9 + pow(clamp(animation->GetOutgoingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.5) * 0.5 +
-              + pow(clamp(animation->GetOutgoingVelocity() - animation->GetIncomingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.3) * 0.5;
-  } else if (animation->GetAnimType().compare("interfere") == 0) {
-    bias = 0.3;
-    exp = 0.7 + pow(clamp(animation->GetOutgoingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.5) * 0.5 +
-              + pow(clamp(animation->GetOutgoingVelocity() - animation->GetIncomingVelocity(), 0, sprintVelocity) / sprintVelocity, 1.3) * 0.5;
-  } else return;
-
-  e_Velocity originalIncomingVelocity = FloatToEnumVelocity(animation->GetIncomingVelocity());
-  e_Velocity originalOutgoingVelocity = FloatToEnumVelocity(animation->GetOutgoingVelocity());
-
-  Quaternion orientation; // dud
-  Vector3 origPosition;
-  Vector3 prevPosition;
-  Quaternion touchOrientation; // dud
-  Vector3 origTouchPosition;
-  float power; // dud
-
-  // backup previous positions
-  Vector3 origPositions[animation->GetFrameCount()];
-  for (int frame = 1; frame < animation->GetFrameCount(); frame++) {
-    animation->GetKeyFrame("player", frame, orientation, origPositions[frame]);
-  }
-
-  Vector3 incoming = animation->GetIncomingMovement();
-  Vector3 outgoing = animation->GetOutgoingMovement();
-
-  //bias = 0.0f; // !!!!!!! disables smoothing !!!!!!! (except for the convert thing below)
-  if (convertAngledDribbleToWalk) {
-    if (FloatToEnumVelocity(animation->GetIncomingVelocity()) == e_Velocity_Dribble) { incoming.Normalize(0); incoming *= walkVelocity; bias = 1.0; }
-    if (FloatToEnumVelocity(animation->GetOutgoingVelocity()) == e_Velocity_Dribble && fabs(animation->GetOutgoingAngle()) < 0.5 * pi) { outgoing.Normalize(0); outgoing *= walkVelocity; bias = 1.0; }
-  }
-
-  animation->GetKeyFrame("player", 0, orientation, origPosition);
-  prevPosition = origPosition;
-
-  for (int frame = 1; frame < animation->GetFrameCount(); frame++) {
-    float frameBias = (float)(frame - 1) / (float)(animation->GetFrameCount() - 3); // first 2 and last 2 frames need to be bias 0 and 1, so our anim keeps having the original in- and outgoing movement
-    frameBias = pow(clamp(frameBias, 0.0, 1.0), exp);
-    //printf("%f, ", bias);
-    Vector3 movement = incoming * (1 - frameBias) + outgoing * frameBias;
-    //movement.Print();
-
-    bool touchFrame = animation->GetExtension("football")->GetKeyFrame(frame, touchOrientation, origTouchPosition, power);
-
-    animation->GetKeyFrame("player", frame, orientation, origPosition);
-    Vector3 smoothPosition = prevPosition + movement * 0.01;
-    smoothPosition.coords[2] = origPosition.coords[2];
-    Vector3 resultingPosition = smoothPosition * bias + origPositions[frame] * (1.0 - bias);
-    animation->SetKeyFrame("player", frame, orientation, resultingPosition);
-
-    Vector3 resultingTouchPosition = origTouchPosition + (resultingPosition - origPosition);
-    if (touchFrame) animation->GetExtension("football")->SetKeyFrame(frame, touchOrientation, resultingTouchPosition, power);
-
-    prevPosition = smoothPosition;
-  }
-
-//  if (FloatToEnumVelocity(animation->GetIncomingVelocity()) != originalIncomingVelocity) printf("incoming: %s: %f to %f\n", animation->GetName().c_str(), EnumToFloatVelocity(originalIncomingVelocity), RangeVelocity(animation->GetIncomingVelocity()));
-//  if (FloatToEnumVelocity(animation->GetOutgoingVelocity()) != originalOutgoingVelocity) printf("outgoing: %s: %f to %f\n", animation->GetName().c_str(), EnumToFloatVelocity(originalOutgoingVelocity), RangeVelocity(animation->GetOutgoingVelocity()));
-}
-
 void AnimCollection::_PrepareAnim(Animation *animation, boost::intrusive_ptr<Node> playerNode, const std::list < boost::intrusive_ptr<Object> > &bodyParts, const std::map < const std::string, boost::intrusive_ptr<Node> > &nodeMap, bool convertAngledDribbleToWalk) {
 
   //animation->Hax();
 
   Vector3 animBallPos;
-  int animTouchFrame;
+  int animTouchFrame = 0;
   bool isTouch = boost::static_pointer_cast<FootballAnimationExtension>(animation->GetExtension("football"))->GetFirstTouch(animBallPos, animTouchFrame);
-  if (isTouch && (animation->GetAnimType() == "movement" || animation->GetAnimType() == "trip" || animation->GetAnimType() == "special")) printf("invalid ball touch for animtype: %s\n", animation->GetName().c_str());
-  if (!isTouch && (animation->GetAnimType() != "movement" && animation->GetAnimType() != "trip" && animation->GetAnimType() != "special")) printf("invalid ball touch for animtype: %s\n", animation->GetName().c_str());
+  if (isTouch && (animation->GetAnimType() == e_DefString_Movement || animation->GetAnimType() == e_DefString_Trip || animation->GetAnimType() == e_DefString_Special)) printf("invalid ball touch for animtype: %s\n", animation->GetName().c_str());
+  if (!isTouch && (animation->GetAnimType() != e_DefString_Movement && animation->GetAnimType() != e_DefString_Trip && animation->GetAnimType() != e_DefString_Special)) printf("invalid ball touch for animtype: %s\n", animation->GetName().c_str());
 
-  float absDiff;
+  float absDiff = 0.0f;
   float expectedFrameCount = CalculateAnimDifficulty(animation, absDiff);
   animation->SetVariable("animdifficultyfactor", real_to_str(absDiff));
   //printf("diff: %f\n", absDiff);
@@ -1207,68 +1020,49 @@ void AnimCollection::_PrepareAnim(Animation *animation, boost::intrusive_ptr<Nod
   //loader.PrintTree((*animation->GetCustomData()));
 }
 
-inline bool AnimCollection::_CheckFunctionType(const std::string &functionType, e_FunctionType queryFunctionType) const {
-
-  bool rightType = false;
-
+inline bool AnimCollection::_CheckFunctionType(e_DefString functionType, e_FunctionType queryFunctionType) const {
   switch (queryFunctionType) {
 
     case e_FunctionType_Movement:
-      if (functionType == defString[e_DefString_Movement]) rightType = true;
-      break;
+      return functionType == e_DefString_Movement;
 
     case e_FunctionType_BallControl:
-      if (functionType == defString[e_DefString_BallControl]) rightType = true;
-      break;
+      return functionType == e_DefString_BallControl;
 
     case e_FunctionType_Trap:
-      if (functionType == defString[e_DefString_Trap]) rightType = true;
-      break;
+      return functionType == e_DefString_Trap;
 
     case e_FunctionType_ShortPass:
-      if (functionType == defString[e_DefString_ShortPass]) rightType = true;
-      break;
+      return functionType == e_DefString_ShortPass;
 
     case e_FunctionType_LongPass:
-      if (functionType == defString[e_DefString_LongPass]) rightType = true;
-      break;
+      return functionType == e_DefString_LongPass;
 
     case e_FunctionType_HighPass:
-      if (functionType == defString[e_DefString_HighPass]) rightType = true;
-      break;
+      return functionType == e_DefString_HighPass;
 
     case e_FunctionType_Shot:
-      if (functionType == defString[e_DefString_Shot]) rightType = true;
-      break;
+      return functionType == e_DefString_Shot;
 
     case e_FunctionType_Deflect:
-      if (functionType == defString[e_DefString_Deflect]) rightType = true;
-      break;
+      return functionType == e_DefString_Deflect;
 
     case e_FunctionType_Catch:
-      if (functionType == defString[e_DefString_Catch]) rightType = true;
-      break;
+      return functionType == e_DefString_Catch;
 
     case e_FunctionType_Interfere:
-      if (functionType == defString[e_DefString_Interfere]) rightType = true;
-      break;
+      return functionType == e_DefString_Interfere;
 
     case e_FunctionType_Trip:
-      if (functionType == defString[e_DefString_Trip]) rightType = true;
-      break;
+      return functionType == e_DefString_Trip;
 
     case e_FunctionType_Sliding:
-      if (functionType == defString[e_DefString_Sliding]) rightType = true;
-      break;
+      return functionType == e_DefString_Sliding;
 
     case e_FunctionType_Special:
-      if (functionType == defString[e_DefString_Special]) rightType = true;
-      break;
+      return functionType == e_DefString_Special;
 
     default:
-      rightType = false;
-      break;
+      return false;
   }
-
-  return rightType;
 }

@@ -1,13 +1,24 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "tasksequence.hpp"
 
-#include "managers/taskmanager.hpp"
-
-#include "framework/scheduler.hpp"
-#include "blunted.hpp"
+#include "../framework/scheduler.hpp"
+#include "../blunted.hpp"
 
 namespace blunted {
 
@@ -21,23 +32,14 @@ namespace blunted {
   }
 
   bool TaskSequenceEntry_SystemTaskMessage::Execute() {
-    command->GetTask()->messageQueue.PushMessage(command, true);
+    command->Handle(command->GetTask());
+    //command->GetTask()->messageQueue.PushMessage(command, true);
     return true;
   }
 
   bool TaskSequenceEntry_SystemTaskMessage::IsReady() {
     return command->IsReady();
   }
-
-  void TaskSequenceEntry_SystemTaskMessage::Wait() {
-    command->Wait();
-  }
-
-  bool TaskSequenceEntry_SystemTaskMessage::Reset() {
-    command->Reset();
-    return true;
-  }
-
 
   // TaskSequenceEntry_UserTaskMessage
 
@@ -48,23 +50,13 @@ namespace blunted {
   }
 
   bool TaskSequenceEntry_UserTaskMessage::Execute() {
-    TaskManager::GetInstance().EnqueueWork(command, true);
+    command->Handle();
     return true;
   }
 
   bool TaskSequenceEntry_UserTaskMessage::IsReady() {
     return command->IsReady();
   }
-
-  void TaskSequenceEntry_UserTaskMessage::Wait() {
-    command->Wait();
-  }
-
-  bool TaskSequenceEntry_UserTaskMessage::Reset() {
-    command->Reset();
-    return true;
-  }
-
 
   // TaskSequenceEntry_Lock
 
@@ -75,8 +67,6 @@ namespace blunted {
   void TaskSequenceEntryLockThread::operator()() {
     sequenceLock.lock();
     isReady.SetData(true);
-    boost::mutex::scoped_lock lock(GetScheduler()->somethingIsDoneMutex);
-    GetScheduler()->somethingIsDone.notify_one();
   }
 
   void TaskSequenceEntryLockThread::Reset() {
@@ -86,47 +76,6 @@ namespace blunted {
   bool TaskSequenceEntryLockThread::IsReady() {
     return isReady.GetData();
   }
-
-  TaskSequenceEntry_Lock::TaskSequenceEntry_Lock(boost::mutex &sequenceLock) : sequenceLock(sequenceLock) {
-    lockThreadObject = new TaskSequenceEntryLockThread(sequenceLock);
-  }
-
-  TaskSequenceEntry_Lock::~TaskSequenceEntry_Lock() {
-    delete lockThreadObject;
-  }
-
-  bool TaskSequenceEntry_Lock::Execute() {
-    lockThread = boost::thread(boost::ref(*lockThreadObject)); // do not make copy; the contained Lockable is not copyable
-    return true;
-  }
-
-  bool TaskSequenceEntry_Lock::IsReady() {
-    return lockThreadObject->IsReady();
-  }
-
-  bool TaskSequenceEntry_Lock::Reset() {
-    lockThreadObject->Reset();
-    return true;
-  }
-
-
-  // TaskSequenceEntry_Unlock
-
-  TaskSequenceEntry_Unlock::TaskSequenceEntry_Unlock(boost::mutex &sequenceLock) : sequenceLock(sequenceLock) {
-  }
-
-  TaskSequenceEntry_Unlock::~TaskSequenceEntry_Unlock() {
-  }
-
-  bool TaskSequenceEntry_Unlock::Execute() {
-    sequenceLock.unlock();
-    return true;
-  }
-
-  bool TaskSequenceEntry_Unlock::IsReady() {
-    return true;
-  }
-
 
   // TaskSequenceEntry_Terminator
 
@@ -206,19 +155,6 @@ namespace blunted {
     AddEntry(taskSequenceEntry);
   }
 
-  void TaskSequence::AddLockEntry(boost::mutex &theLock, e_LockAction lockAction) {
-    boost::shared_ptr<ITaskSequenceEntry> someLock;
-    switch (lockAction) {
-      case e_LockAction_Lock:
-        someLock = boost::shared_ptr<ITaskSequenceEntry>(new TaskSequenceEntry_Lock(theLock));
-        break;
-      case e_LockAction_Unlock:
-        someLock = boost::shared_ptr<ITaskSequenceEntry>(new TaskSequenceEntry_Unlock(theLock));
-        break;
-    }
-    AddEntry(someLock);
-  }
-
   void TaskSequence::AddTerminator() {
     boost::shared_ptr<ITaskSequenceEntry> arnie(new TaskSequenceEntry_Terminator());
     AddEntry(arnie);
@@ -236,10 +172,6 @@ namespace blunted {
 
   int TaskSequence::GetSequenceTime() const {
     return sequenceTime_ms;
-  }
-
-  void TaskSequence::SetSequenceTime(int value) {
-    sequenceTime_ms = value;
   }
 
   const std::string TaskSequence::GetName() const {

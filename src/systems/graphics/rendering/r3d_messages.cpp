@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -7,10 +20,6 @@
 #include "../resources/texture.hpp"
 
 namespace blunted {
-
-  bool R3DM_SortVertexBufferQueueEntries(const VertexBufferQueueEntry &vb1, const VertexBufferQueueEntry &vb2) {
-    return vb1.vertexBuffer->GetResource()->GetID() < vb2.vertexBuffer->GetResource()->GetID();
-  }
 
   bool Renderer3DMessage_RenderView::Execute(void *caller) {
 
@@ -29,25 +38,32 @@ namespace blunted {
     //printf("%i entries\n", buffer.visibleGeometry.size());
     //buffer.visibleGeometry.sort(SortVertexBufferQueueEntries);
 
-    int width;
-    int height;
-    int bpp;
+    int width = 0;
+    int height = 0;
+    int bpp = 0;
     renderer->GetContextSize(width, height, bpp);
     // opengl window starts lower left, so invert y
-    //printf("%i %i %i %i\n", view.x, height - view.y, view.width, view.height);
-    renderer->SetViewport(view.x, height - (view.y + view.height), view.width, view.height);
+    renderer->SetViewport(view.x, height - view.y - view.height, view.width, view.height);
 
     renderer->SetFOV(buffer.cameraFOV);
 
-    float depthParamNear = buffer.cameraFarCap / (buffer.cameraFarCap - buffer.cameraNearCap);
-    float depthParamFar = (buffer.cameraFarCap * buffer.cameraNearCap) / (buffer.cameraNearCap - buffer.cameraFarCap);
+    float depthParamNear = 0;
+    float depthParamFar = 0;
+    volatile float division = buffer.cameraNearCap - buffer.cameraFarCap;
+    if (fabs(division) > EPSILON) {
+      division = 1 / division;
+      depthParamFar = (buffer.cameraFarCap * buffer.cameraNearCap) * division;
+    }
+    if (fabs(division) > EPSILON) {
+      depthParamNear = buffer.cameraFarCap / (buffer.cameraFarCap - buffer.cameraNearCap);
+    }
 
     std::vector<e_TargetAttachment> targets;
 
 
     // render skybox
 
-    if (buffer.skyboxes.size() > 0) { // todo: use shader?
+    if (buffer.skyboxes.size() > 0) {
       Matrix4 skyboxMatrix = viewMatrix;
       skyboxMatrix.SetTranslation(Vector3(0, 0, 0));
       //XX renderer->SetMatrixMode(e_MatrixMode_ModelView);

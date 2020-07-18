@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -12,44 +25,16 @@
 #include "../../main.hpp"
 #include "../../utils.hpp"
 
-#include "base/geometry/triangle.hpp"
+#include "../../base/geometry/triangle.hpp"
 
 int PlayerBase::playerCount = 0;
+int PlayerBase::stablePlayerCount = 0;
 
-PlayerBase::PlayerBase(Match *match, PlayerData *playerData) : match(match), playerData(playerData), id(playerCount++), humanoid(0), controller(0), externalController(0), isActive(false) {
+PlayerBase::PlayerBase(Match *match, PlayerData *playerData) : match(match), playerData(playerData), id(playerCount++), stable_id(stablePlayerCount++), humanoid(0), controller(0), externalController(0), isActive(false) {
   debug = false;
   lastTouchTime_ms = 0;
   lastTouchType = e_TouchType_None;
   fatigueFactorInv = 1.0;
-  confidenceFactor = 1.0;
-
-  averageStat = GetStat("physical_balance") +
-                GetStat("physical_reaction") +
-                GetStat("physical_acceleration") +
-                GetStat("physical_velocity") +
-                GetStat("physical_stamina") +
-                GetStat("physical_agility") +
-                GetStat("physical_shotpower") +
-                GetStat("technical_standingtackle") +
-                GetStat("technical_slidingtackle") +
-                GetStat("technical_ballcontrol") +
-                GetStat("technical_dribble") +
-                GetStat("technical_shortpass") +
-                GetStat("technical_highpass") +
-                GetStat("technical_header") +
-                GetStat("technical_shot") +
-                GetStat("technical_volley") +
-                GetStat("mental_calmness") +
-                GetStat("mental_workrate") +
-                GetStat("mental_resilience") +
-                GetStat("mental_defensivepositioning") +
-                GetStat("mental_offensivepositioning") +
-                GetStat("mental_vision");
-  averageStat /= 22.0;
-
-  //if (Verbose()) printf("player '%s' has an average stat of %f\n", playerData->GetLastName().c_str(), averageStat);
-  Log(e_Notice, "PlayerBase", "PlayerBase", "player '" + playerData->GetLastName() + "' has an average stat of " + real_to_str(averageStat));
-
 }
 
 PlayerBase::~PlayerBase() {
@@ -67,7 +52,7 @@ void PlayerBase::Deactivate() {
 
   if (humanoid) humanoid->Hide();
 
-  if (externalController) externalController = 0;
+  externalController = nullptr;
   delete controller;
 }
 
@@ -81,17 +66,20 @@ void PlayerBase::RequestCommand(PlayerCommandQueue &commandQueue) {
                      else controller->RequestCommand(commandQueue);
 }
 
-void PlayerBase::SetExternalController(IController *externalController) {
+void PlayerBase::SetExternalController(HumanController *externalController) {
   this->externalController = externalController;
   if (this->externalController) {
     this->externalController->Reset();
     this->externalController->SetPlayer(this);
-    this->externalController->SetFallbackController(controller);
     //debug = true;
   } else {
     controller->Reset();
     //debug = false;
   }
+}
+
+HumanController *PlayerBase::GetExternalController() {
+  return externalController;
 }
 
 void PlayerBase::SetDebug(bool state) {
@@ -135,7 +123,7 @@ float PlayerBase::GetMaxVelocity() const {
 
 float PlayerBase::GetVelocityMultiplier() const {
   // see humanoid_utils' physics function
-  return 0.9f + GetStat("physical_velocity") * 0.1f;
+  return 0.9f + playerData->get_physical_velocity() * 0.1f;
 }
 
 float PlayerBase::GetLastTouchBias(int decay_ms, unsigned long time_ms) {

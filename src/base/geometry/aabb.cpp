@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -86,8 +99,10 @@ namespace blunted {
   }
 
   void AABB::Reset() {
-    minxyz.Set( std::numeric_limits<real>::max(),  std::numeric_limits<real>::max(),  std::numeric_limits<real>::max());
-    maxxyz.Set(-std::numeric_limits<real>::max(), -std::numeric_limits<real>::max(), -std::numeric_limits<real>::max());
+    const float min_v = std::numeric_limits<real>::min() / 100;
+    const float max_v = std::numeric_limits<real>::max() / 100;
+    minxyz.Set(max_v, max_v, max_v);
+    maxxyz.Set(min_v, min_v, min_v);
     radius_needupdate = true;
     center_needupdate = true;
   }
@@ -108,8 +123,8 @@ namespace blunted {
       x = maxxyz.coords[0] - minxyz.coords[0];
       y = maxxyz.coords[1] - minxyz.coords[1];
       z = maxxyz.coords[2] - minxyz.coords[2];
-      real length = sqrt(pow(x, 2) + pow(y, 2));
-      radius = sqrt(pow(length, 2) + pow(z, 2)) / 2.0;
+      real length = sqrt(std::pow(x, 2) + std::pow(y, 2));
+      radius = sqrt(std::pow(length, 2) + std::pow(z, 2)) / 2.0;
       radius_needupdate = false;
     }
     return radius;
@@ -191,27 +206,4 @@ namespace blunted {
       return false;
     }
   }
-
-  bool AABB::Intersects(const Line &src) const {
-    // http://www.gamedev.net/community/forums/topic.asp?topic_id=338987
-
-    Vector3 p1 = src.GetVertex(0);
-    Vector3 p2 = src.GetVertex(1);
-
-    Vector3 d = (p2 - p1) * 0.5f;
-    Vector3 e = (maxxyz - minxyz) * 0.5f;
-    Vector3 c = p1 + d - (minxyz + maxxyz) * 0.5f;
-    Vector3 ad = d.GetAbsolute(); // returns same vector with all components positive
-
-    if (fabsf(c.coords[0]) > e.coords[0] + ad.coords[0]) return false;
-    if (fabsf(c.coords[1]) > e.coords[1] + ad.coords[1]) return false;
-    if (fabsf(c.coords[2]) > e.coords[2] + ad.coords[2]) return false;
-
-    if (fabsf(d.coords[1] * c.coords[2] - d.coords[2] * c.coords[1]) > e.coords[1] * ad.coords[2] + e.coords[2] * ad.coords[1] + std::numeric_limits<float>::denorm_min()) return false;
-    if (fabsf(d.coords[2] * c.coords[0] - d.coords[0] * c.coords[2]) > e.coords[2] * ad.coords[0] + e.coords[0] * ad.coords[2] + std::numeric_limits<float>::denorm_min()) return false;
-    if (fabsf(d.coords[0] * c.coords[1] - d.coords[1] * c.coords[0]) > e.coords[0] * ad.coords[1] + e.coords[1] * ad.coords[0] + std::numeric_limits<float>::denorm_min()) return false;
-
-    return true;
-  }
-
 }

@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -10,6 +23,7 @@
 #include "managers/resourcemanagerpool.hpp"
 
 #include <boost/algorithm/string.hpp>
+#include <cmath>
 
 float GetQuantizedDirectionBias() {
   return GetConfiguration()->GetReal("gameplay_quantizeddirectionbias", _default_QuantizedDirectionBias);
@@ -25,7 +39,7 @@ void QuantizeDirection(Vector3 &inputDirection, float bias) {
 
   radian angle = inputDirectionNorm.GetAngle2D();
   angle /= pi * 2.0f;
-  angle = round(angle * directions);
+  angle = std::round(angle * directions);
   angle /= directions;
   angle *= pi * 2.0f;
 
@@ -160,7 +174,7 @@ void GetWeightedPositions(const std::string &positionString, std::vector<Weighte
 void InitDefaultProfiles() {
   // std::map < e_PositionName, std::vector<Stat> > defaultProfiles;
 
-  // todo: replace push_back's by emplace_back? (needs compiler flag though)
+
 
   std::vector<Stat> statsGK;
   statsGK.push_back((Stat){"physical_balance", 0.6});
@@ -546,8 +560,7 @@ float GetAverageStatFromValue(int age, int value) {
 */
 
 float CalculateStat(float baseStat, float profileStat, float age, e_DevelopmentCurveType developmentCurveType) {
-  // todo: profile-profile on specific early/late age skill factors
-  // todo: use development curves. this is just a quick and dirty version for the demo
+
 
   float idealAge = 27;
   float ageFactor = curve( 1.0f - NormalizedClamp(fabs(age - idealAge), 0, 13) * 0.5f , 1.0f) * 2.0f - 1.0f; // 0 .. 1
@@ -564,7 +577,7 @@ float CalculateStat(float baseStat, float profileStat, float age, e_DevelopmentC
 
 /*
 float GetIndividualStat(float averageStat, float profileStat, float age) {
-  // todo: profile-profile on specific early/late age skill factors
+
 
   //float stat = averageStat * profileStat;
 
@@ -591,7 +604,7 @@ float GetIndividualStat(float averageStat, float profileStat, float age) {
 }
 
 float GetAverageStatFromBaseStat(float baseStat, int age, e_DevelopmentCurveType developmentCurveType) {
-  // todo: use curves. this is just a quick and dirty version for the demo
+
 
   float ageFactor = pow(clamp( float(age - 15) / float(28 - 15) , 0.0, 1.0), 0.5);
   return pow(baseStat, 1.0 - ageFactor * 0.9f);
@@ -610,7 +623,9 @@ template <> TemporalValue<Quaternion>::TemporalValue() {
 
 template <typename T> TemporalSmoother<T>::TemporalSmoother() {
   //snapshotSize = 3;
-  snapshotSize = 3 + int(ceil(temporalSmoother_history_ms / 10.0f)); // not sure how to calculate proper number?
+  snapshotSize =
+      3 + int(std::ceil(temporalSmoother_history_ms /
+                        10.0f));  // not sure how to calculate proper number?
   values = boost::circular_buffer< TemporalValue<T> >(snapshotSize);
 }
 
@@ -684,14 +699,14 @@ template <typename T> T TemporalSmoother<T>::GetValue(unsigned long currentTime_
   //if (random(0.0f, 1.0f) > 0.8f) printf("bias: %f\n", bias);
   //if (random(0.0f, 1.0f) > 0.8f) printf("ago: %li\n", now_ms - values.at(values.size() - 1).time_ms);
 
-  return MixData(value1.data, value2.data, bias);
+  return DataMix(value1.data, value2.data, bias);
 }
 
-template <typename T> T TemporalSmoother<T>::MixData(const T &data1, const T &data2, float bias) const {
+template <typename T> T TemporalSmoother<T>::DataMix(const T &data1, const T &data2, float bias) const {
   return data1 * (1.0f - bias) + data2 * bias;
 }
 
-template <> Quaternion TemporalSmoother<Quaternion>::MixData(const Quaternion &data1, const Quaternion &data2, float bias) const {
+template <> Quaternion TemporalSmoother<Quaternion>::DataMix(const Quaternion &data1, const Quaternion &data2, float bias) const {
   return data1.GetLerped(bias, data2);
 }
 

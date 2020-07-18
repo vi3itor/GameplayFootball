@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -214,7 +227,7 @@ KeyboardPage::KeyboardPage(Gui2WindowManager *windowManager, const Gui2PageData 
 
   for (int i = 0; i < 18; i++) {
     keyButtons[i] = 0;
-    keyIDs[i] = (SDLKey)GetConfiguration()->GetInt(("input_keyboard_" + int_to_str(i)).c_str(), (SDLKey)defaultKeyIDs[i]);//48);
+    keyIDs[i] = (SDL_Keycode)GetConfiguration()->GetInt(("input_keyboard_" + int_to_str(i)).c_str(), (SDL_Keycode)defaultKeyIDs[i]);//48);
   }
 
   Gui2Button *buttonDefaults = new Gui2Button(windowManager, "button_keyboard_defaults", 0, 0, 30, 3, "reset to defaults");
@@ -223,79 +236,58 @@ KeyboardPage::KeyboardPage(Gui2WindowManager *windowManager, const Gui2PageData 
 
   Gui2Caption *captionNorth = new Gui2Caption(windowManager, "caption_keyboard_north", 0, 0, 20, 3, "walk north");
   keyButtons[0] = new Gui2Button(windowManager, "button_keyboard_up", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[0]));
-  keyButtons[0]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 0, "walk north"));
 
   Gui2Caption *captionEast = new Gui2Caption(windowManager, "caption_keyboard_east", 0, 0, 20, 3, "walk east");
   keyButtons[1] = new Gui2Button(windowManager, "button_keyboard_east", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[1]));
-  keyButtons[1]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 1, "walk east"));
 
   Gui2Caption *captionSouth = new Gui2Caption(windowManager, "caption_keyboard_south", 0, 0, 20, 3, "walk south");
   keyButtons[2] = new Gui2Button(windowManager, "button_keyboard_south", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[2]));
-  keyButtons[2]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 2, "walk south"));
 
   Gui2Caption *captionWest = new Gui2Caption(windowManager, "caption_keyboard_west", 0, 0, 20, 3, "walk west");
   keyButtons[3] = new Gui2Button(windowManager, "button_keyboard_west", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[3]));
-  keyButtons[3]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 3, "walk west"));
 
 
   Gui2Caption *captionThrough = new Gui2Caption(windowManager, "caption_keyboard_through", 0, 0, 20, 3, "(on ball) through pass");
   keyButtons[4] = new Gui2Button(windowManager, "button_keyboard_through", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[4]));
-  keyButtons[4]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 4, "through pass"));
 
   Gui2Caption *captionHigh = new Gui2Caption(windowManager, "caption_keyboard_high", 0, 0, 20, 3, "(on ball) high pass");
   keyButtons[5] = new Gui2Button(windowManager, "button_keyboard_high", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[5]));
-  keyButtons[5]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 5, "high pass"));
 
   Gui2Caption *captionPass = new Gui2Caption(windowManager, "caption_keyboard_pass", 0, 0, 20, 3, "(on ball) normal pass");
   keyButtons[6] = new Gui2Button(windowManager, "button_keyboard_pass", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[6]));
-  keyButtons[6]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 6, "normal pass"));
 
   Gui2Caption *captionShoot = new Gui2Caption(windowManager, "caption_keyboard_shoot", 0, 0, 20, 3, "(on ball) shoot");
   keyButtons[7] = new Gui2Button(windowManager, "button_keyboard_shoot", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[7]));
-  keyButtons[7]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 7, "shoot"));
-
 
   Gui2Caption *captionKeeper = new Gui2Caption(windowManager, "caption_keyboard_keeper", 0, 0, 20, 3, "(off ball) keeper to ball");
   keyButtons[8] = new Gui2Button(windowManager, "button_keyboard_keeper", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[8]));
-  keyButtons[8]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 8, "keeper to ball"));
 
   Gui2Caption *captionSliding = new Gui2Caption(windowManager, "caption_keyboard_sliding", 0, 0, 20, 3, "(off ball) sliding");
   keyButtons[9] = new Gui2Button(windowManager, "button_keyboard_sliding", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[9]));
-  keyButtons[9]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 9, "sliding"));
 
   Gui2Caption *captionPressure = new Gui2Caption(windowManager, "caption_keyboard_pressure", 0, 0, 20, 3, "(off ball) pressure");
   keyButtons[10] = new Gui2Button(windowManager, "button_keyboard_pressure", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[10]));
-  keyButtons[10]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 10, "pressure"));
 
   Gui2Caption *captionTeamPressure = new Gui2Caption(windowManager, "caption_keyboard_teampressure", 0, 0, 20, 3, "(off ball) team pressure");
   keyButtons[11] = new Gui2Button(windowManager, "button_keyboard_teampressure", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[11]));
-  keyButtons[11]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 11, "team pressure"));
-
 
   Gui2Caption *captionSwitch = new Gui2Caption(windowManager, "caption_keyboard_switch", 0, 0, 20, 3, "switch player");
   keyButtons[12] = new Gui2Button(windowManager, "button_keyboard_switch", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[12]));
-  keyButtons[12]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 12, "switch player"));
 
   Gui2Caption *captionSpecial = new Gui2Caption(windowManager, "caption_keyboard_special", 0, 0, 20, 3, "special");
   keyButtons[13] = new Gui2Button(windowManager, "button_keyboard_special", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[13]));
-  keyButtons[13]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 13, "special"));
 
   Gui2Caption *captionSprint = new Gui2Caption(windowManager, "caption_keyboard_sprint", 0, 0, 20, 3, "sprint");
   keyButtons[14] = new Gui2Button(windowManager, "button_keyboard_sprint", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[14]));
-  keyButtons[14]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 14, "sprint"));
 
   Gui2Caption *captionSlow = new Gui2Caption(windowManager, "caption_keyboard_dribble", 0, 0, 20, 3, "slow dribble");
   keyButtons[15] = new Gui2Button(windowManager, "button_keyboard_dribble", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[15]));
-  keyButtons[15]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 15, "slow dribble"));
-
 
   Gui2Caption *captionSelect = new Gui2Caption(windowManager, "caption_keyboard_select", 0, 0, 20, 3, "select");
   keyButtons[16] = new Gui2Button(windowManager, "button_keyboard_select", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[16]));
-  keyButtons[16]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 16, "select"));
 
   Gui2Caption *captionStart = new Gui2Caption(windowManager, "caption_keyboard_start", 0, 0, 20, 3, "start");
   keyButtons[17] = new Gui2Button(windowManager, "button_keyboard_start", 0, 0, 16, 3, SDL_GetKeyName(keyIDs[17]));
-  keyButtons[17]->sig_OnClick.connect(boost::bind(&KeyboardPage::SetKey, this, 17, "start"));
 
   Gui2Grid *grid = new Gui2Grid(windowManager, "grid_keyboard_settings_keys", 0, 0, 60, 50);
   grid->SetWrapping(false);
@@ -377,35 +369,13 @@ void KeyboardPage::OnClose() {
 
 void KeyboardPage::SetDefaults() {
   for (int i = 0; i < 18; i++) {
-    keyButtons[i]->GetCaptionWidget()->SetCaption(SDL_GetKeyName((SDLKey)defaultKeyIDs[i]));
-    keyIDs[i] = (SDLKey)defaultKeyIDs[i];
+    keyButtons[i]->GetCaptionWidget()->SetCaption(SDL_GetKeyName((SDL_Keycode)defaultKeyIDs[i]));
+    keyIDs[i] = (SDL_Keycode)defaultKeyIDs[i];
   }
 }
 
-void KeyboardPage::SetKey(int buttonID, const std::string &name) {
-  bg = new Gui2Image(windowManager, "image_capturekey_bg", 0, 47, 100, 5);
-  bg->LoadImage("media/menu/backgrounds/black.png");
-
-  pressKeyCaption = new Gui2Caption(windowManager, "caption_settings_keyboard_presskey", 0, 48, 100, 3, "press key for '" + name + "'");
-  pressKeyCaption->SetPosition(50 - pressKeyCaption->GetTextWidthPercent() * 0.5, 48);
-
-  bg->SetPosition(50 - pressKeyCaption->GetTextWidthPercent() * 0.5 - 1, 47);
-  bg->SetSize(pressKeyCaption->GetTextWidthPercent() + 2, 5);
-
-  captureKey = new Gui2CaptureKey(windowManager, "capturekey_settings_keyboard");
-  captureKey->sig_OnKey.connect(boost::bind(&KeyboardPage::SetKeyDone, this, buttonID));
-
-  this->AddView(bg);
-  this->AddView(pressKeyCaption);
-  this->AddView(captureKey);
-  bg->Show();
-  pressKeyCaption->Show();
-  captureKey->Show();
-  captureKey->SetFocus();
-}
-
 void KeyboardPage::SetKeyDone(int buttonID) {
-  SDLKey value = (SDLKey)captureKey->GetKeyID();
+  SDL_Keycode value = (SDL_Keycode)captureKey->GetKeyID();
   //printf("clickah! %i\n", value);
   keyButtons[buttonID]->GetCaptionWidget()->SetCaption(SDL_GetKeyName(value));
   keyIDs[buttonID] = value;
@@ -1060,7 +1030,7 @@ GamepadFunctionPage::GamepadFunctionPage(Gui2WindowManager *windowManager, const
   buttonDefaults->sig_OnClick.connect(boost::bind(&GamepadFunctionPage::SetDefaults, this));
   buttonDefaults->sig_OnClick.connect(boost::bind(&GamepadFunctionPage::GoBack, this));
 
-  Gui2Image *spacer = new Gui2Image(windowManager, "tmpspacer", 0, 0, 1, 5); // todo: spacer widget
+  Gui2Image *spacer = new Gui2Image(windowManager, "tmpspacer", 0, 0, 1, 5);
 
   Gui2Grid *wrapperGrid = new Gui2Grid(windowManager, "grid_gamepad_function_wrapper", 10, 15, 40, 75);
   wrapperGrid->SetWrapping(true, false);
@@ -1188,16 +1158,6 @@ void GamepadFunctionPage::SetDefaults() {
   static_cast<HIDGamepad*>(controller)->SetFunctionMapping(e_ButtonFunction_TeamPressure, e_ControllerButton_X);
 }
 
-
-// GRAPHICS MENU
-
-bool CheckDuplicate(const std::vector<Resolution> &res, int x, int y) {
-  for (unsigned int i = 0; i < res.size(); i++) {
-    if (res.at(i).x == x && res.at(i).y == y) return true;
-  }
-  return false;
-}
-
 GraphicsPage::GraphicsPage(Gui2WindowManager *windowManager, const Gui2PageData &pageData) : Gui2Page(windowManager, pageData) {
 
   Gui2Caption *title = new Gui2Caption(windowManager, "caption_settings_graphics", 20, 10, 60, 3, "Graphics setup");
@@ -1240,18 +1200,18 @@ GraphicsPage::GraphicsPage(Gui2WindowManager *windowManager, const Gui2PageData 
     }
 
     //get available fullscreen/hardware modes
-    modes = SDL_ListModes(&format, SDL_FULLSCREEN);
-    if (modes) {
-      for(int i = 0; modes[i]; ++i) {
+    //modes = SDL_ListModes(&format, SDL_FULLSCREEN);
+    //if (modes) {
+      //for(int i = 0; modes[i]; ++i) {
         Resolution res;
-        res.x = modes[i]->w;
-        res.y = modes[i]->h;
-        res.bpp = bpp;
+        res.x = 1280;//modes[i]->w;
+        res.y = 1024;//modes[i]->h;
+        res.bpp = 32;//bpp;
         res.fullscreen = false;
         //if (res.bpp == 32) if (!CheckDuplicate(resolutions, res.x, res.y))
         resolutions.push_back(res);
-      }
-    }
+      //}
+    //}
   }
 #endif
 

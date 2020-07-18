@@ -1,14 +1,27 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "camera.hpp"
 
-#include "systems/isystemobject.hpp"
+#include "../../systems/isystemobject.hpp"
 
-#include "scene/objects/light.hpp"
-#include "scene/objects/geometry.hpp"
-#include "scene/objects/skybox.hpp"
+#include "../../scene/objects/light.hpp"
+#include "../../scene/objects/geometry.hpp"
+#include "../../scene/objects/skybox.hpp"
 
 namespace blunted {
 
@@ -20,7 +33,6 @@ namespace blunted {
 
 
   void Camera::Init() { // ATOMIC
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -28,11 +40,9 @@ namespace blunted {
       CameraInterpreter->OnLoad(properties);
     }
 
-    subjectMutex.unlock();
   }
 
   void Camera::Exit() { // ATOMIC
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -42,11 +52,9 @@ namespace blunted {
 
     Object::Exit();
 
-    subjectMutex.unlock();
   }
 
   void Camera::SetFOV(float fov) {
-    subjectMutex.lock();
 
     this->fov = fov;
 
@@ -56,11 +64,9 @@ namespace blunted {
       CameraInterpreter->SetFOV(fov);
     }
 
-    subjectMutex.unlock();
   }
 
   void Camera::SetCapping(float nearCap, float farCap) {
-    subjectMutex.lock();
 
     this->nearCap = nearCap;
     this->farCap = farCap;
@@ -71,11 +77,9 @@ namespace blunted {
       CameraInterpreter->SetCapping(nearCap, farCap);
     }
 
-    subjectMutex.unlock();
   }
 
   void Camera::EnqueueView(std::deque < boost::intrusive_ptr<Geometry> > &visibleGeometry, std::deque < boost::intrusive_ptr<Light> > &visibleLights, std::deque < boost::intrusive_ptr<Skybox> > &skyboxes) {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -83,11 +87,9 @@ namespace blunted {
       CameraInterpreter->EnqueueView(GetName(), visibleGeometry, visibleLights, skyboxes);
     }
 
-    subjectMutex.unlock();
   }
 
   void Camera::Poke(e_SystemType targetSystemType) {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -95,13 +97,11 @@ namespace blunted {
       if (CameraInterpreter->GetSystemType() == targetSystemType) CameraInterpreter->OnPoke();
     }
 
-    subjectMutex.unlock();
   }
 
   void Camera::RecursiveUpdateSpatialData(e_SpatialDataType spatialDataType, e_SystemType excludeSystem) {
     InvalidateSpatialData();
 
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -111,7 +111,6 @@ namespace blunted {
       }
     }
 
-    subjectMutex.unlock();
   }
 
 }

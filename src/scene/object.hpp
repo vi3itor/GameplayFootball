@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,11 +18,11 @@
 #ifndef _HPP_OBJECT
 #define _HPP_OBJECT
 
-#include "defines.hpp"
+#include "../defines.hpp"
 
-#include "types/subject.hpp"
-#include "types/spatial.hpp"
-#include "base/properties.hpp"
+#include "../types/subject.hpp"
+#include "../types/spatial.hpp"
+#include "../base/properties.hpp"
 
 namespace blunted {
 
@@ -22,13 +35,11 @@ namespace blunted {
     e_ObjectType_Skybox = 4,
     e_ObjectType_Light = 5,
     e_ObjectType_Joint = 6,
-    e_ObjectType_AudioReceiver = 7,
-    e_ObjectType_Sound = 8,
-    e_ObjectType_UserStart = 9
+    e_ObjectType_UserStart = 7
   };
 
   struct MustUpdateSpatialData {
-    bool haveTo;
+    bool haveTo = false;
     e_SystemType excludeSystem;
   };
 
@@ -70,18 +81,15 @@ namespace blunted {
       Lockable<MustUpdateSpatialData> updateSpatialDataAfterPoke;
 
       virtual boost::intrusive_ptr<Interpreter> GetInterpreter(e_SystemType targetSystemType);
-      virtual void LockSubject();
-      virtual void UnlockSubject();
 
       virtual void SetPokePriority(int prio) { pokePriority.SetData(prio); }
       virtual int GetPokePriority() const { return pokePriority.GetData(); }
 
       // set these before creating system objects
-      // todo: create 2 types of properties: one for pre-creating system objects (for example; what system objects should be created?)
-      // and one for Init() stuff
+
       Properties properties;
 
-      // todo: virtual OnChange method?
+
 
     protected:
       e_ObjectType objectType;
@@ -91,7 +99,7 @@ namespace blunted {
       // request these to be set by observing objects
       mutable Lockable<Properties> requestProperties;
 
-      bool enabled;
+      bool enabled = false;
 
   };
 

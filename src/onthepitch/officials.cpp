@@ -1,14 +1,27 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "officials.hpp"
 
-#include "scene/scene3d/scene3d.hpp"
+#include "../scene/scene3d/scene3d.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
-#include "utils/objectloader.hpp"
-#include "scene/objectfactory.hpp"
+#include "../managers/resourcemanagerpool.hpp"
+#include "../utils/objectloader.hpp"
+#include "../scene/objectfactory.hpp"
 
 #include "player/playerofficial.hpp"
 #include "player/humanoid/humanoidbase.hpp"
@@ -28,9 +41,9 @@ Officials::Officials(Match *match, boost::intrusive_ptr<Node> fullbodySourceNode
   linesmen[0] = new PlayerOfficial(e_OfficialType_Linesman, match, playerData);
   linesmen[1] = new PlayerOfficial(e_OfficialType_Linesman, match, playerData);
 
-  referee->Activate(playerNode, fullbodySourceNode, colorCoords, kit, match->GetAnimCollection());
-  linesmen[0]->Activate(playerNode, fullbodySourceNode, colorCoords, kit, match->GetAnimCollection());
-  linesmen[1]->Activate(playerNode, fullbodySourceNode, colorCoords, kit, match->GetAnimCollection());
+  referee->Activate(playerNode, fullbodySourceNode, colorCoords, kit, match->GetAnimCollection(), false);
+  linesmen[0]->Activate(playerNode, fullbodySourceNode, colorCoords, kit, match->GetAnimCollection(), false);
+  linesmen[1]->Activate(playerNode, fullbodySourceNode, colorCoords, kit, match->GetAnimCollection(), false);
   playerNode->Exit();
   playerNode.reset();
 
@@ -38,14 +51,14 @@ Officials::Officials(Match *match, boost::intrusive_ptr<Node> fullbodySourceNode
   linesmen[0]->CastHumanoid()->ResetPosition(Vector3(25, -36.5, 0), Vector3(0));
   linesmen[1]->CastHumanoid()->ResetPosition(Vector3(-25, 36.5, 0), Vector3(0));
 
-  boost::intrusive_ptr < Resource<GeometryData> > geometry = ResourceManagerPool::GetInstance().GetManager<GeometryData>(e_ResourceType_GeometryData)->Fetch("media/objects/officials/yellowcard.ase", true);
+  boost::intrusive_ptr < Resource<GeometryData> > geometry = ResourceManagerPool::getGeometryManager()->Fetch("media/objects/officials/yellowcard.ase", true);
   yellowCard = static_pointer_cast<Geometry>(ObjectFactory::GetInstance().CreateObject("yellowcard", e_ObjectType_Geometry));
   GetScene3D()->CreateSystemObjects(yellowCard);
   yellowCard->SetGeometryData(geometry);
   yellowCard->SetLocalMode(e_LocalMode_Absolute);
   yellowCard->SetPosition(Vector3(0, 0, -10));
 
-  geometry = ResourceManagerPool::GetInstance().GetManager<GeometryData>(e_ResourceType_GeometryData)->Fetch("media/objects/officials/redcard.ase", true);
+  geometry = ResourceManagerPool::getGeometryManager()->Fetch("media/objects/officials/redcard.ase", true);
   redCard = static_pointer_cast<Geometry>(ObjectFactory::GetInstance().CreateObject("redcard", e_ObjectType_Geometry));
   GetScene3D()->CreateSystemObjects(redCard);
   redCard->SetGeometryData(geometry);
@@ -73,8 +86,10 @@ void Officials::GetPlayers(std::vector<PlayerBase*> &players) {
 
 void Officials::Process() {
   referee->Process();
-  linesmen[0]->Process();
-  linesmen[1]->Process();
+  if (GetGameConfig().render_mode != e_Disabled) {
+    linesmen[0]->Process();
+    linesmen[1]->Process();
+  }
 }
 
 void Officials::PreparePutBuffers(unsigned long snapshotTime_ms) {
@@ -91,10 +106,12 @@ void Officials::FetchPutBuffers(unsigned long putTime_ms) {
 
 void Officials::Put() {
   referee->Put();
-  linesmen[0]->Put();
-  linesmen[1]->Put();
+  if (GetGameConfig().render_mode != e_Disabled) {
+    linesmen[0]->Put();
+    linesmen[1]->Put();
+  }
 
-  // todo: I don't think it's legal to use all those unbuffered (unmutex'ed) Getters here
+
   if (referee->GetCurrentFunctionType() == e_FunctionType_Special && (match->GetReferee()->GetCurrentFoulType() == 2 || match->GetReferee()->GetCurrentFoulType() == 3)) {
     std::string bodyPartName = "right_elbow";
     if (referee->GetCurrentAnim()->anim->GetName().find("mirror") != std::string::npos) bodyPartName = "left_elbow";

@@ -1,18 +1,29 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "scheduler.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
-#include "managers/environmentmanager.hpp"
-#include "managers/taskmanager.hpp"
-#include "base/log.hpp"
+#include "../managers/resourcemanagerpool.hpp"
+#include "../managers/environmentmanager.hpp"
+#include "../base/log.hpp"
 
 namespace blunted {
 
-  Scheduler::Scheduler(TaskManager *taskManager) : taskManager(taskManager) {
-    cleanUpTimeOffset = 0;
+  Scheduler::Scheduler() {
     previousTime_ms = 0;
   }
 
@@ -22,19 +33,17 @@ namespace blunted {
   void Scheduler::Exit() {
 
     if (GetSequenceCount() != 0) { // shouldn't happen
-      sequences.Lock();
-      for (unsigned int i = 0; i < sequences.data.size(); i++) {
-        printf("sequence '%s' is stuck on entry #%i!\n", sequences.data.at(i)->taskSequence->GetName().c_str(), sequences.data.at(i)->programCounter);
+      //sequences.Lock();
+      for (unsigned int i = 0; i < sequences.size(); i++) {
+        printf("sequence '%s' is stuck on entry #%i!\n", sequences.at(i)->taskSequence->GetName().c_str(), sequences.at(i)->programCounter);
       }
-      sequences.Unlock();
+      //sequences.Unlock();
     }
     assert(GetSequenceCount() == 0);
   }
 
   int Scheduler::GetSequenceCount() {
-    sequences.Lock();
-    int size = sequences.data.size();
-    sequences.Unlock();
+    int size = sequences.size();
     return size;
   }
 
@@ -50,92 +59,25 @@ namespace blunted {
     program->lastSequenceTime = 0;
     program->startTime = time_ms;
     program->timesRan = 0;
-    program->paused = false;
-    program->dueQuit = false;
     program->readyToQuit = false;
-    sequences.Lock();
-    sequences.data.push_back(program);
-    sequences.Unlock();
-  }
-
-  void Scheduler::UnregisterTaskSequence(boost::shared_ptr<TaskSequence> sequence) {
-    // todo
-  }
-
-  void Scheduler::UnregisterTaskSequence(const std::string &name) {
-    sequences.Lock();
-    for (unsigned int i = 0; i < sequences.data.size(); i++) {
-      boost::shared_ptr<TaskSequenceProgram> program = sequences.data.at(i);
-      if (program->taskSequence->GetName() == name) {
-        program->dueQuit = true;
-        break;
-      }
-    }
-    sequences.Unlock();
-  }
-
-  void Scheduler::PauseTaskSequence(const std::string &name) {
-    sequences.Lock();
-    for (unsigned int i = 0; i < sequences.data.size(); i++) {
-      boost::shared_ptr<TaskSequenceProgram> program = sequences.data.at(i);
-      if (program->taskSequence->GetName() == name) {
-        program->paused = true;
-        break;
-      }
-    }
-    sequences.Unlock();
-  }
-
-  void Scheduler::UnpauseTaskSequence(const std::string &name) {
-    sequences.Lock();
-    for (unsigned int i = 0; i < sequences.data.size(); i++) {
-      boost::shared_ptr<TaskSequenceProgram> program = sequences.data.at(i);
-      if (program->taskSequence->GetName() == name) {
-        program->paused = false;
-        break;
-      }
-    }
-    sequences.Unlock();
+    sequences.push_back(program);
   }
 
   void Scheduler::ResetTaskSequenceTime(const std::string &name) {
-    sequences.Lock();
-    for (unsigned int i = 0; i < sequences.data.size(); i++) {
-      boost::shared_ptr<TaskSequenceProgram> program = sequences.data.at(i);
+    for (unsigned int i = 0; i < sequences.size(); i++) {
+      boost::shared_ptr<TaskSequenceProgram> program = sequences.at(i);
       if (program->taskSequence->GetName() == name) {
         program->startTime = EnvironmentManager::GetInstance().GetTime_ms();// - startTime_ms;
         program->timesRan = 0;
         break;
       }
     }
-    sequences.Unlock();
-  }
-
-  unsigned long Scheduler::GetTaskSequenceTime_ms(const std::string &name) {
-    unsigned int resultTime_ms = 0;
-    sequences.Lock();
-    for (unsigned int i = 0; i < sequences.data.size(); i++) {
-      boost::shared_ptr<TaskSequenceProgram> program = sequences.data.at(i);
-      if (program->taskSequence->GetName() == name) {
-
-        if (program->taskSequence->GetSkippable()) {
-          resultTime_ms = program->sequenceStartTime + program->taskSequence->GetSequenceTime();
-        } else {
-          resultTime_ms = program->startTime + program->taskSequence->GetSequenceTime() * program->timesRan;
-        }
-
-        break;
-      }
-    }
-    sequences.Unlock();
-    return resultTime_ms;
   }
 
   TaskSequenceInfo Scheduler::GetTaskSequenceInfo(const std::string &name) {
     TaskSequenceInfo info;
-    sequences.Lock(); // todo: cache this to overcome threading traffic slowdowns?
-    for (unsigned int i = 0; i < sequences.data.size(); i++) {
-      boost::shared_ptr<TaskSequenceProgram> program = sequences.data.at(i);
+    for (unsigned int i = 0; i < sequences.size(); i++) {
+      boost::shared_ptr<TaskSequenceProgram> program = sequences.at(i);
       if (program->taskSequence->GetName() == name) {
 
         info.sequenceStartTime_ms = program->sequenceStartTime;
@@ -147,7 +89,6 @@ namespace blunted {
         break;
       }
     }
-    sequences.Unlock();
     return info;
   }
 
@@ -158,61 +99,27 @@ namespace blunted {
     // sequenced version, the best yet!
     // thought up by Jurian Broertjes & Bastiaan Konings Schuiling
 
-    boost::mutex::scoped_lock lock(somethingIsDoneMutex);
+    //boost::mutex::scoped_lock lock(somethingIsDoneMutex);
 
     unsigned int firstSequence = 0;
     int quiterations = 0;
     bool sequencesQuitMessageDone = false;
 
-    while (EnvironmentManager::GetInstance().GetQuit() == false || GetSequenceCount() > 0) {
-
-      if (EnvironmentManager::GetInstance().GetQuit()) {
-
-        // let sequences finish
-        if (!sequencesQuitMessageDone) {
-          sequences.Lock();
-          for (unsigned int i = 0; i < sequences.data.size(); i++) {
-            sequences.data.at(i)->dueQuit = true;
-          }
-          sequences.Unlock();
-          sequencesQuitMessageDone = true;
-        }
-
-        // check if we're stuck
-        if (sequencesQuitMessageDone && GetSequenceCount() > 0) {
-          quiterations++;
-          if (quiterations > 1000) {
-            // something won't shut up!
-            sequences.Lock();
-            for (unsigned int i = 0; i < sequences.data.size(); i++) {
-              printf("sequence '%s' is stuck on entry #%i!\n", sequences.data.at(i)->taskSequence->GetName().c_str(), sequences.data.at(i)->programCounter);
-            }
-            sequences.Unlock();
-            quiterations = 0;
-          }
-        }
-      }
+    //while (true) {
 
       unsigned long time_ms = EnvironmentManager::GetInstance().GetTime_ms();
       unsigned long timeDiff_ms = time_ms - previousTime_ms;
       previousTime_ms = time_ms;
 
-      cleanUpTimeOffset += timeDiff_ms;
-
-
       // find first sequence entry that needs to be started
 
       TaskSequenceQueueEntry dueEntry;
 
-      sequences.Lock();
-
       bool someSequenceNeedsDeleting = false;
 
-      for (unsigned int i = 0; i < sequences.data.size(); i++) {
-        int programIndex = (i + firstSequence) % sequences.data.size();
-        boost::shared_ptr<TaskSequenceProgram> program = sequences.data.at(programIndex);
-
-        if (verbose) printf("sequence %i, previous program counter %i, program counter %i\n", i, program->previousProgramCounter, program->programCounter);
+      for (unsigned int i = 0; i < sequences.size(); i++) {
+        int programIndex = (i + firstSequence) % sequences.size();
+        boost::shared_ptr<TaskSequenceProgram> program = sequences.at(programIndex);
 
         // check if previous entry is ready
         bool previousEntryIsReady = true;
@@ -228,46 +135,22 @@ namespace blunted {
 
         }
 
-        if (verbose) {
-          if (previousEntryIsReady) {
-            printf("sequence %i counter %i is ready\n", programIndex, program->previousProgramCounter);
-          } else {
-            printf("sequence %i counter %i is not ready\n", programIndex, program->previousProgramCounter);
-          }
-        }
-
         if (previousEntryIsReady) {
 
           long timeUntilDueEntry_ms = 0; // if programCounter != 0, we just want to start the next entry ASAP
 
           if (program->programCounter == 0) { // else, (re)starting sequence; find out when it's due
 
-            if (program->dueQuit == true) {
-
-              program->readyToQuit = true;
-              someSequenceNeedsDeleting = true;
-
-            } else if (program->paused == true) {
-
-              if (!program->taskSequence->GetSkippable()) program->startTime += timeDiff_ms;
-
-            } else { // not quitting or paused
-
-              if (program->taskSequence->GetSkippable()) {
-                // use relative time: don't mind if last frame lasted too long
-                timeUntilDueEntry_ms = (program->sequenceStartTime + program->taskSequence->GetSequenceTime()) - time_ms;
-                //printf("wiieee: %i .. %li .. %li\n", program->taskSequence->GetFrameTime(), time_ms, startTimeRel_ms);
-              } else {
-                // use absolute time: if not enough iterations have been done to get to frametime * timesran, start immediately
-                timeUntilDueEntry_ms = (program->startTime + program->taskSequence->GetSequenceTime() * program->timesRan) - time_ms;
-                //printf("wiieee: %i .. %li .. %li\n", program->taskSequence->GetSequenceTime(), time_ms, timeUntilDueEntry_ms);
-              }
-
+            if (program->taskSequence->GetSkippable()) {
+              // use relative time: don't mind if last frame lasted too long
+              timeUntilDueEntry_ms = (program->sequenceStartTime + program->taskSequence->GetSequenceTime()) - time_ms;
+            } else {
+              // use absolute time: if not enough iterations have been done to get to frametime * timesran, start immediately
+              timeUntilDueEntry_ms = (program->startTime + program->taskSequence->GetSequenceTime() * program->timesRan) - time_ms;
             }
-
           }
 
-          if (!program->readyToQuit && !program->paused && (timeUntilDueEntry_ms < dueEntry.timeUntilDueEntry_ms || dueEntry.program == boost::shared_ptr<TaskSequenceProgram>())) {
+          if (!program->readyToQuit && (timeUntilDueEntry_ms < dueEntry.timeUntilDueEntry_ms || dueEntry.program == boost::shared_ptr<TaskSequenceProgram>())) {
             dueEntry.program = program;
             dueEntry.timeUntilDueEntry_ms = timeUntilDueEntry_ms;
           }
@@ -281,39 +164,29 @@ namespace blunted {
 
       if (someSequenceNeedsDeleting) {
 
-        std::vector < boost::shared_ptr<TaskSequenceProgram> >::iterator quiterator = sequences.data.begin();
-        while (quiterator != sequences.data.end()) {
+        std::vector < boost::shared_ptr<TaskSequenceProgram> >::iterator quiterator = sequences.begin();
+        while (quiterator != sequences.end()) {
           boost::shared_ptr<TaskSequenceProgram> program = *quiterator;
           if (program->readyToQuit == true) {
-            quiterator = sequences.data.erase(quiterator);
+            quiterator = sequences.erase(quiterator);
           } else {
             quiterator++;
           }
         }
 
-        // sequences.Unlock();
+        // //sequences.Unlock();
         // continue;
 
       } else { // (no deletes)
 
         // switch first sequence to handle next time (so they all get a turn)
-        // todo: this way, longer sequences get relatively less time in total. is this desirable?
+
         firstSequence++;
-        if (firstSequence >= sequences.data.size()) firstSequence = 0;
+        if (firstSequence >= sequences.size()) firstSequence = 0;
 
-        long timeout_ms = 0;
-        if (dueEntry.program != boost::shared_ptr<TaskSequenceProgram>()) {
-          // wait until time for due sequence entry (even if that is <= 0, because we need to unlock the condition and sequences locks anyway)
-          timeout_ms = dueEntry.timeUntilDueEntry_ms;
-          timeout_ms = std::max(timeout_ms, (long)0);
-        } else {
-          timeout_ms = 100; // wait for wakeup signal
-        }
-
-        sequences.Unlock();
-        boost::system_time tAbsoluteTime = boost::get_system_time() + boost::posix_time::milliseconds(timeout_ms);
-        bool isMessage = somethingIsDone.timed_wait(lock, tAbsoluteTime);
-        sequences.Lock();
+        //sequences.Unlock();
+        //bool isMessage = somethingIsDone. timed_wait(lock, tAbsoluteTime);
+        //sequences.Lock();
 
         if (dueEntry.program != boost::shared_ptr<TaskSequenceProgram>()) {
 
@@ -327,32 +200,18 @@ namespace blunted {
             }
 
             if (verbose) printf("executing program counter %i\n", dueEntry.program->programCounter);
-            dueEntry.program->taskSequence->GetEntry(dueEntry.program->programCounter)->Reset();
             dueEntry.program->taskSequence->GetEntry(dueEntry.program->programCounter)->Execute();
 
             dueEntry.program->previousProgramCounter = dueEntry.program->programCounter;
             dueEntry.program->programCounter++;
 
+          } else {
+            EnvironmentManager::GetInstance().IncrementTime_ms(10);
           }
-
         }
 
       }
-
-      sequences.Unlock();
-
-
-      // cleanup unused resources
-
-      if (cleanUpTimeOffset > 5000) { // every 5 seconds
-        //printf("cleanup..\n");
-        ResourceManagerPool::GetInstance().CleanUp();
-        cleanUpTimeOffset = 0;
-      }
-
-    }
-
-    return true;
+    return GetSequenceCount() > 0;
   }
 
 

@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -16,25 +29,12 @@ class Team;
 class Player;
 
 struct PreRating { // for optimization: first calculate everything but passrating, since that one is slow to calculate. cull results before rating pass freedom
-
-  int candidateID;
-
-  float offenseRating; // how close to goal are we?
-  float distanceRating; // how far away from possession player are we?
-  float movementRating; // prefer continuing in our currect direction
-  float formationRating; // prefer movement to our formation position
-  float offsideRating; // 0 == offside, 1 == not offside
-
-  float totalRating;
 };
-
-bool PreRatingSortFunc(const PreRating &a, const PreRating &b);
-bool SortPlayersDeepestFirst(Player *a, Player *b);
 
 class ElizaController : public PlayerController {
 
   public:
-    ElizaController(Match *match);
+    ElizaController(Match *match, bool lazyPlayer);
     virtual ~ElizaController();
 
     virtual void RequestCommand(PlayerCommandQueue &commandQueue);
@@ -45,8 +45,9 @@ class ElizaController : public PlayerController {
     void LoadStrategies();
 
     float GetLazyVelocity(float desiredVelocityFloat);
-    Vector3 GetSupportPosition(const MentalImage *mentalImage, const Vector3 &basePosition);
-    Vector3 GetSupportPosition_ForceField(const MentalImage *mentalImage, const Vector3 &basePosition, bool makeRun = false);
+    Vector3 GetSupportPosition_ForceField(const MentalImage *mentalImage,
+                                          const Vector3 &basePosition,
+                                          bool makeRun = false);
 
     virtual void Reset();
 
@@ -65,7 +66,8 @@ class ElizaController : public PlayerController {
     Strategy *goalieStrategy;
 
     Vector3 lastDesiredDirection;
-    float lastDesiredVelocity;
+    float lastDesiredVelocity = 0.0f;
+    const bool lazyPlayer = false;
 
 };
 

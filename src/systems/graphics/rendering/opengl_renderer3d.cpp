@@ -1,22 +1,38 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "opengl_renderer3d.hpp"
-
 #include <GL/glu.h>
-#include <SDL/SDL.h>
 
-#include "base/log.hpp"
-#include "managers/environmentmanager.hpp"
-#include "managers/usereventmanager.hpp"
-#include "types/command.hpp"
-#include "base/sdl_surface.hpp"
-#include "base/utils.hpp"
-#include "base/math/bluntmath.hpp"
+#include <cmath>
+#include "wrap_SDL.h"
 
-#include "base/geometry/aabb.hpp"
-#include "base/geometry/trianglemeshutils.hpp"
+#include "../../../main.hpp"
+#include "../../../base/log.hpp"
+#include "../../../utils/gui2/widgets/image.hpp"
+#include "../../../managers/environmentmanager.hpp"
+#include "../../../managers/usereventmanager.hpp"
+#include "../../../types/command.hpp"
+#include "../../../base/sdl_surface.hpp"
+#include "../../../base/utils.hpp"
+#include "../../../base/math/bluntmath.hpp"
+
+#include "../../../base/geometry/aabb.hpp"
+#include "../../../base/geometry/trianglemeshutils.hpp"
 
 #include "../resources/texture.hpp"
 
@@ -26,32 +42,42 @@
 
 namespace blunted {
 
-  OpenGLRenderer3D::OpenGLRenderer3D() : context(0), contextIsActive(true) {
-    FOV = 45;
-    overallBrightness = 128;
+struct GLfunctions {
+#define SDL_PROC(ret,func,params) ret (APIENTRYP func) params;
+#include "sdl_glfuncs.h"
+#undef SDL_PROC
+};
 
-    _cache_activeTextureUnit = -1;
+GLfunctions mapping;
 
-    currentShader = shaders.end();
+OpenGLRenderer3D::OpenGLRenderer3D() : context(0) {
+  FOV = 45;
+  overallBrightness = 128;
 
-    //SetPriorityClass(thread.native_handle(), HIGH_PRIORITY_CLASS);
-  };
+  _cache_activeTextureUnit = -1;
+
+  currentShader = shaders.end();
+
+  // SetPriorityClass(thread.native_handle(), HIGH_PRIORITY_CLASS);
+};
 
   OpenGLRenderer3D::~OpenGLRenderer3D() {
   };
 
   void OpenGLRenderer3D::SwapBuffers() {
-    SDL_GL_SwapBuffers();
+    last_screen_.resize(1280*720*3);
+    SDL_GL_SwapWindow(window);
+    mapping.glReadPixels(0, 0, 1280, 720, GL_RGB, GL_UNSIGNED_BYTE, &last_screen_[0]);
   }
 
   void OpenGLRenderer3D::LoadMatrix(const Matrix4 &mat) {
-    glLoadMatrixf((float*)mat.GetTransposed().elements);
+    mapping.glLoadMatrixf((float*)mat.GetTransposed().elements);
   }
 
   Matrix4 OpenGLRenderer3D::GetMatrix(e_MatrixMode matrixMode) const {
     float the_matrix[16];
-    if (matrixMode == e_MatrixMode_Projection) glGetFloatv(GL_PROJECTION_MATRIX, the_matrix);
-    if (matrixMode == e_MatrixMode_ModelView) glGetFloatv(GL_MODELVIEW_MATRIX, the_matrix);
+    if (matrixMode == e_MatrixMode_Projection) mapping.glGetFloatv(GL_PROJECTION_MATRIX, the_matrix);
+    if (matrixMode == e_MatrixMode_ModelView) mapping.glGetFloatv(GL_MODELVIEW_MATRIX, the_matrix);
     return Matrix4(the_matrix).GetTransposed();
   }
 
@@ -64,29 +90,29 @@ namespace blunted {
 
     assert(context);
 
-    // todo: use shaders maybe? (not sure if use of compat. context slows things down)
 
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0, context->w, context->h, 0, 0.1, 10);
 
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    glTranslatef(0, 0, -1);
+    mapping.glMatrixMode(GL_PROJECTION);
+    mapping.glPushMatrix();
+    mapping.glLoadIdentity();
+    mapping.glOrtho(0, 1280, 720, 0, 0.1, 10);
 
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
+    mapping.glMatrixMode(GL_MODELVIEW);
+    mapping.glPushMatrix();
+    mapping.glLoadIdentity();
+    mapping.glTranslatef(0, 0, -1);
 
-    glDisable(GL_DEPTH_TEST);
+    mapping.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    mapping.glEnable(GL_BLEND);
+
+    mapping.glDisable(GL_DEPTH_TEST);
     SetDepthMask(false);
-    glShadeModel(GL_FLAT);
-  	glDisable(GL_FOG);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_LIGHTING);
+    mapping.glShadeModel(GL_FLAT);
+    mapping.glDisable(GL_FOG);
+    mapping.glDisable(GL_CULL_FACE);
+    mapping.glDisable(GL_LIGHTING);
 
-    glEnable(GL_TEXTURE_2D);
+    mapping.glEnable(GL_TEXTURE_2D);
 
     for (unsigned int i = 0; i < overlay2DQueue.size(); i++) {
       const Overlay2DQueueEntry &queueEntry = overlay2DQueue.at(i);
@@ -97,37 +123,37 @@ namespace blunted {
       i2 += 0.15 - (i2 * 0.01);
       */
 
-      glBindTexture(GL_TEXTURE_2D, queueEntry.texture->GetResource()->GetID());
+      mapping.glBindTexture(GL_TEXTURE_2D, queueEntry.texture->GetResource()->GetID());
 
-      glBegin(GL_QUADS);
+      mapping.glBegin(GL_QUADS);
 
-      glTexCoord3f(0, 0, 0);
-      glVertex2f(queueEntry.position[0]                     , queueEntry.position[1]);
-      glTexCoord3f(1, 0, 0);
-      glVertex2f(queueEntry.position[0] + queueEntry.size[0], queueEntry.position[1]);
-      glTexCoord3f(1, 1, 0);
-      glVertex2f(queueEntry.position[0] + queueEntry.size[0], queueEntry.position[1] + queueEntry.size[1]);
-      glTexCoord3f(0, 1, 0);
-      glVertex2f(queueEntry.position[0]                     , queueEntry.position[1] + queueEntry.size[1]);
+      mapping.glTexCoord3f(0, 0, 0);
+      mapping.glVertex2f(queueEntry.position[0]                     , queueEntry.position[1]);
+      mapping.glTexCoord3f(1, 0, 0);
+      mapping.glVertex2f(queueEntry.position[0] + queueEntry.size[0], queueEntry.position[1]);
+      mapping.glTexCoord3f(1, 1, 0);
+      mapping.glVertex2f(queueEntry.position[0] + queueEntry.size[0], queueEntry.position[1] + queueEntry.size[1]);
+      mapping.glTexCoord3f(0, 1, 0);
+      mapping.glVertex2f(queueEntry.position[0]                     , queueEntry.position[1] + queueEntry.size[1]);
 
-      glEnd();
+      mapping.glEnd();
     }
 
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glShadeModel(GL_SMOOTH);
+    mapping.glEnable(GL_DEPTH_TEST);
+    mapping.glEnable(GL_CULL_FACE);
+    mapping.glShadeModel(GL_SMOOTH);
     SetDepthMask(true);
 
-    glDisable(GL_BLEND);
+    mapping.glDisable(GL_BLEND);
 
-    glPopMatrix();
+    mapping.glPopMatrix();
 
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
+    mapping.glMatrixMode(GL_PROJECTION);
+    mapping.glPopMatrix();
 
-    glMatrixMode(GL_MODELVIEW);
+    mapping.glMatrixMode(GL_MODELVIEW);
 
-    glLoadIdentity();
+    mapping.glLoadIdentity();
   }
 
   void OpenGLRenderer3D::RenderOverlay2D() {
@@ -140,28 +166,28 @@ namespace blunted {
     SetMatrix("orthoViewMatrix", viewMatrix);
 
 
-    glShadeModel(GL_FLAT);
-    glDisable(GL_LIGHTING);
+    mapping.glShadeModel(GL_FLAT);
+    mapping.glDisable(GL_LIGHTING);
 
     SetCullingMode(e_CullingMode_Off);
 
-    glEnable(GL_TEXTURE_2D);
+    mapping.glEnable(GL_TEXTURE_2D);
     SetTextureUnit(4); // noise
     BindTexture(noiseTexID);
     SetTextureUnit(0);
 
-    glBegin(GL_QUADS);
+    mapping.glBegin(GL_QUADS);
 
-    glTexCoord3f(0, 1, 0);
-    glVertex2f(-1, 1);
-    glTexCoord3f(1, 1, 0);
-    glVertex2f(1, 1);
-    glTexCoord3f(1, 0, 0);
-    glVertex2f(1, -1);
-    glTexCoord3f(0, 0, 0);
-    glVertex2f(-1, -1);
+    mapping.glTexCoord3f(0, 1, 0);
+    mapping.glVertex2f(-1, 1);
+    mapping.glTexCoord3f(1, 1, 0);
+    mapping.glVertex2f(1, 1);
+    mapping.glTexCoord3f(1, 0, 0);
+    mapping.glVertex2f(1, -1);
+    mapping.glTexCoord3f(0, 0, 0);
+    mapping.glVertex2f(-1, -1);
 
-    glEnd();
+    mapping.glEnd();
 
     // unbind noise
     SetTextureUnit(4);
@@ -174,32 +200,32 @@ namespace blunted {
     int i, j;
     for (i = 0; i <= lats; i++) {
       float lat0 = pi * (-0.5 + (float) (i - 1) / lats);
-      float z0  = sin(lat0);
-      float zr0 =  cos(lat0);
+      float z0 = std::sin(lat0);
+      float zr0 = std::cos(lat0);
 
       float lat1 = pi * (-0.5 + (float) i / lats);
-      float z1 = sin(lat1);
-      float zr1 = cos(lat1);
+      float z1 = std::sin(lat1);
+      float zr1 = std::cos(lat1);
 
-      glBegin(GL_QUAD_STRIP);
+      mapping.glBegin(GL_QUAD_STRIP);
       for (j = 0; j <= longs; j++) {
           float lng = 2 * pi * (float) (j - 1) / longs;
-          float x = cos(lng);
-          float y = sin(lng);
+          float x = std::cos(lng);
+          float y = std::sin(lng);
 
-          glNormal3f(x * zr0, y * zr0, z0);
-          glVertex3f(x * zr0 * r, y * zr0 * r, z0 * r);
-          glNormal3f(x * zr1, y * zr1, z1);
-          glVertex3f(x * zr1 * r, y * zr1 * r, z1 * r);
+          mapping.glNormal3f(x * zr0, y * zr0, z0);
+          mapping.glVertex3f(x * zr0 * r, y * zr0 * r, z0 * r);
+          mapping.glNormal3f(x * zr1, y * zr1, z1);
+          mapping.glVertex3f(x * zr1 * r, y * zr1 * r, z1 * r);
       }
-      glEnd();
+      mapping.glEnd();
     }
   }
 
   void OpenGLRenderer3D::RenderLights(std::deque<LightQueueEntry> &lightQueue, const Matrix4 &projectionMatrix, const Matrix4 &viewMatrix) {
     Vector3 cameraPos = viewMatrix.GetInverse().GetTranslation();
 
-  	glDisable(GL_ALPHA_TEST);
+    mapping.glDisable(GL_ALPHA_TEST);
 
     SetUniformFloat3(currentShader->first, "cameraPosition", cameraPos.coords[0], cameraPos.coords[1], cameraPos.coords[2]);
 
@@ -208,14 +234,14 @@ namespace blunted {
     while (lightIter != lightQueue.end()) {
       const LightQueueEntry &light = (*lightIter);
 
-      // todo: add light types SetUniformInt("lighting", "lightType", (int)light.type);
+
 
       // bind shadow map
       SetUniformInt(currentShader->first, "has_shadow", (int)light.hasShadow);
       if (light.hasShadow) {
         SetTextureUnit(7);
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, light.shadowMapTexture->GetResource()->GetID());
+        mapping.glEnable(GL_TEXTURE_2D);
+        mapping.glBindTexture(GL_TEXTURE_2D, light.shadowMapTexture->GetResource()->GetID());
 
         Matrix4 toTexCoords(MATRIX4_IDENTITY);
         toTexCoords.SetTranslation(Vector3(0.5f, 0.5f, 0.5f));
@@ -223,7 +249,7 @@ namespace blunted {
         SetUniformMatrix4(currentShader->first, "lightViewProjectionMatrix", toTexCoords * (*lightIter).lightProjectionMatrix * (*lightIter).lightViewMatrix);
 
       } else {
-        glDisable(GL_TEXTURE_2D);
+        mapping.glDisable(GL_TEXTURE_2D);
       }
 
       SetUniformFloat3(currentShader->first, "lightColor", light.color.coords[0], light.color.coords[1], light.color.coords[2]);
@@ -264,18 +290,18 @@ namespace blunted {
         Matrix4 modelMatrix(MATRIX4_IDENTITY);
         SetMatrix("modelMatrix", modelMatrix);
 
-        glBegin(GL_QUADS);
+        mapping.glBegin(GL_QUADS);
 
-        glTexCoord3f(0, 1, 0);
-        glVertex2f(-1, 1);
-        glTexCoord3f(1, 1, 0);
-        glVertex2f(1, 1);
-        glTexCoord3f(1, 0, 0);
-        glVertex2f(1, -1);
-        glTexCoord3f(0, 0, 0);
-        glVertex2f(-1, -1);
+        mapping.glTexCoord3f(0, 1, 0);
+        mapping.glVertex2f(-1, 1);
+        mapping.glTexCoord3f(1, 1, 0);
+        mapping.glVertex2f(1, 1);
+        mapping.glTexCoord3f(1, 0, 0);
+        mapping.glVertex2f(1, -1);
+        mapping.glTexCoord3f(0, 0, 0);
+        mapping.glVertex2f(-1, -1);
 
-        glEnd();
+        mapping.glEnd();
 
       } else {
 
@@ -295,8 +321,8 @@ namespace blunted {
       }
 
       if (light.hasShadow) {
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glDisable(GL_TEXTURE_2D);
+        mapping.glBindTexture(GL_TEXTURE_2D, 0);
+        mapping.glDisable(GL_TEXTURE_2D);
         SetTextureUnit(0);
       }
 
@@ -334,14 +360,13 @@ namespace blunted {
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1); // DISABLED?
 
     //SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     //SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
     //SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-    // todo: remember to enable this later on, after migrating to sdl 2 (though it is on by default with most drivers, or so it seems)
-    //SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
+
 
 //    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 //    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
@@ -352,21 +377,53 @@ namespace blunted {
 
 //#endif
 
-    context = SDL_SetVideoMode(width, height, bpp, SDL_OPENGL/* | SDL_RESIZABLE*/ | (fullscreen ? SDL_FULLSCREEN : 0));
+    window = SDL_CreateWindow("Google Research Football",
+                               SDL_WINDOWPOS_UNDEFINED,
+                               SDL_WINDOWPOS_UNDEFINED,
+                               width, height,
+                               SDL_WINDOW_OPENGL/* | SDL_RESIZABLE*/ | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
+    context = SDL_GL_CreateContext(window);
+
+
+//    *reinterpret_cast<void**>(&(mapping.func)) = SDL_GL_GetProcAddress(#func);
+//    *reinterpret_cast<void**>(&(mapping.func)) = (void*) func;
+
+#define SDL_PROC(ret,func,params) \
+   do { \
+         *reinterpret_cast<void**>(&(mapping.func)) = SDL_GL_GetProcAddress(#func); \
+       if ( ! mapping.func ) { \
+           printf("Couldn't load GL function %s: %s\n", #func, SDL_GetError()); \
+           SDL_SetError("Couldn't load GL function %s: %s\n", #func, SDL_GetError()); \
+           print_stacktrace(); \
+           exit(1); \
+       } \
+   } while ( 0 );
+#include "sdl_glfuncs.h"
+#undef SDL_PROC
+
+
+    int glVersion[2] = { 0, 0 };
+    //ASSERT_TRUE(glGetIntegervFunc != nullptr);
+    mapping.glGetIntegerv(GL_MAJOR_VERSION, &glVersion[0]);
+    mapping.glGetIntegerv(GL_MINOR_VERSION, &glVersion[1]);
+
+
+        //SDL_SetVideoMode(width, height, bpp, SDL_OPENGL/* | SDL_RESIZABLE*/ | (fullscreen ? SDL_FULLSCREEN : 0));
     if (!context) {
       std::string errorString = SDL_GetError();
-      Log(e_FatalError, "OpenGLRenderer3D", "CreateContext", "Failed on SDL error: " + errorString);
+      Log(e_FatalError, "OpenGLRenderer3D", "CreateContext", "Failed on SDL errwwwwor: " + errorString);
       return false;
     }
 
-    std::string glVersionString = (char*)glGetString(GL_VERSION);
-    Log(e_Notice, "OpenGLRenderer3D", "CreateContext", "Using OpenGL version " + glVersionString);
 
-    int glVersion[2] = { 0, 0 };
-    glGetIntegerv(GL_MAJOR_VERSION, &glVersion[0]);
-    glGetIntegerv(GL_MINOR_VERSION, &glVersion[1]);
+    //std::string glVersionString = (char*)mapping.glGetString(GL_VERSION);
+    //Log(e_Notice, "OpenGLRenderer3D", "CreateContext", "Using OpenGL version " + glVersionString);
 
-    Log(e_Notice, "OpenGLRenderer3D", "CreateContext", "OpenGL major/minor " + int_to_str(glVersion[0]) + "." + int_to_str(glVersion[1]));
+//    int glVersion[2] = { 0, 0 };
+    //mapping.glGetIntegerv(GL_MAJOR_VERSION, &glVersion[0]);
+    //mapping.glGetIntegerv(GL_MINOR_VERSION, &glVersion[1]);
+
+    //Log(e_Notice, "OpenGLRenderer3D", "CreateContext", "OpenGL major/minor " + int_to_str(glVersion[0]) + "." + int_to_str(glVersion[1]));
 
     bool higherThan32 = false;
     if (glVersion[0] < 4) {
@@ -375,85 +432,31 @@ namespace blunted {
 
     if (!higherThan32) Log(e_Warning, "OpenGLRenderer3D", "CreateContext", "OpenGL version not equal to or higher than 3.2 (or not reported as such)");
 
-    SDL_WM_SetCaption("Gameplay Football", NULL);
+    //SDL_WM_SetCaption("Gameplay Football", NULL);
 
-#ifdef WIN32
-    SDL_VERSION(&wmInfo.version);
-    if (SDL_GetWMInfo(&wmInfo)) {
-
-      HWND hWnd = wmInfo.window;
-      // center window
-      // todo: needs linux version for centering as well. not sure how. find out.
-      if (!fullscreen) {
-        //#undef _WIN32_WINNT
-        //#define _WIN32_WINNT 0x0500
-        //#undef WINVER
-        //#define WINVER 0x0500
-        //#include <windows.h>
-        //#include <winuser.h>
-        HMONITOR mon = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
-        MONITORINFO monInfo;
-        monInfo.cbSize = sizeof(MONITORINFO);
-        bool getMonInfo = GetMonitorInfo(mon, &monInfo);
-        if (getMonInfo != 0) {
-          RECT rect = monInfo.rcWork;
-          int xSize = rect.right - rect.left;
-          int xCenter = rect.left + (xSize * 0.5f);
-          int ySize = rect.bottom - rect.top;
-          int yCenter = rect.top + (ySize * 0.5f);
-          int xWin = xCenter - (width * 0.5f);
-          int yWin = yCenter - (height * 0.5f);
-          xWin = std::max(xWin, 0); // super annoying to have a window's controls being unreachable
-          yWin = std::max(yWin, 0);
-          xWin -= 3; // window border size (educated guess - is a user setting, after all)
-          yWin -= 12; // window border size + taskbar (educated guess - is a user setting, after all)
-          SetWindowPos(hWnd, NULL, xWin, yWin, 0, 0, SWP_NOSIZE);
-        }
-        //SetWindowPos(hWnd, NULL, 976, 0, 0, 0, SWP_NOSIZE);
-      }
-
-      //HDC hDC = GetDC(wmInfo.window);
-      //wglMakeCurrent(hDC, wmInfo.hglrc);
-    }
-#endif
-
-#ifdef WIN32
-    bool success = false;//wglSwapIntervalEXT(-1);
-    if (!success) wglSwapIntervalEXT(1);
-    //if (!success) printf("ANTI TEAR NOT SUPPORTED\n\n\n\n\n");
-#endif
 
 #ifdef __linux__
-    GLenum err = glewInit();
-    if (GLEW_OK != err) {
-      std::string errorString =  (char*) glewGetErrorString(err);
-      Log(e_FatalError, "OpenGLRenderer3D", "CreateContext", errorString);
-    }
-
-    bool success = false;//glXSwapIntervalSGI(-1); // anti-tear blah
-    if (!success) glXSwapIntervalSGI(1);
-    //if (!success) printf("ANTI TEAR NOT SUPPORTED\n\n\n\n\n");
+    bool success = true;//glXSwapIntervalSGI(-1); // anti-tear blah
 #endif
 
-    //SDL_ShowCursor(SDL_DISABLE); // todo: make customizable
-    //SDL_WarpMouse(1280 * 3, 1024);
+    //SDL_ShowCursor(SDL_DISABLE);
     largest_supported_anisotropy = 2;
-    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest_supported_anisotropy);
+    mapping.glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest_supported_anisotropy);
     //largest_supported_anisotropy = clamp(largest_supported_anisotropy, 0, 8); // don't overdo it
 
-    glDisable(GL_LIGHTING);
+    mapping.glDisable(GL_LIGHTING);
 
     GLfloat color[4] = { 0, 0, 0, 0 };
-    glMaterialfv(GL_FRONT, GL_SPECULAR, color);
-    glMateriali(GL_FRONT, GL_SHININESS, 80);
+    mapping.glMaterialfv(GL_FRONT, GL_SPECULAR, color);
+    mapping.glMateriali(GL_FRONT, GL_SHININESS, 80);
 
     // enable color tracking
-    glEnable(GL_COLOR_MATERIAL);
-    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+    mapping.glEnable(GL_COLOR_MATERIAL);
+    mapping.glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
 
-    glDisable(GL_MULTISAMPLE);
+    mapping.glDisable(GL_MULTISAMPLE);
 
-    glCullFace(GL_BACK);
+    mapping.glCullFace(GL_BACK);
 
 
     // shaders
@@ -467,16 +470,16 @@ namespace blunted {
     currentShader = shaders.begin();
 
 
-    SDL_Surface *noise = IMG_Load("media/shaders/noise.png");
+    SDL_Surface *noise = IMG_LoadBmp("media/shaders/noise.png");
     noiseTexID = CreateTexture(e_InternalPixelFormat_RGB8, e_PixelFormat_RGB, noise->w, noise->h, false, true, false, false, false);
     UpdateTexture(noiseTexID, noise, false, false);
     SDL_FreeSurface(noise);
 
-    glClearColor(0, 0, 0, 0);
-    glClearDepth(1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    mapping.glClearColor(0, 0, 0, 0);
+    mapping.glClearDepth(1.0);
+    mapping.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glDisable(GL_MULTISAMPLE);
+    mapping.glDisable(GL_MULTISAMPLE);
 
     return true;
   }
@@ -486,17 +489,16 @@ namespace blunted {
 
     std::map<std::string, Shader>::iterator shaderIter = shaders.begin();
     while (shaderIter != shaders.end()) {
-      glDeleteShader((*shaderIter).second.vertexShaderID);
-      glDeleteShader((*shaderIter).second.fragmentShaderID);
-      glDeleteProgram((*shaderIter).second.programID);
+      mapping.glDeleteShader((*shaderIter).second.vertexShaderID);
+      mapping.glDeleteShader((*shaderIter).second.fragmentShaderID);
+      mapping.glDeleteProgram((*shaderIter).second.programID);
       shaderIter++;
     }
 
     currentShader = shaders.end();
 
     // assert(views.size() == 0);
-    // todo: make views erase-able, as for now a views vector index is used when requesting views, which prohibits erasion
-    // (actually, erasion 'works', but it does leave 'empty' records in the views vector, which is ugly and memory-leaky)
+
   }
 
   int OpenGLRenderer3D::CreateView(float x_percent, float y_percent, float width_percent, float height_percent) {
@@ -511,7 +513,6 @@ namespace blunted {
     view.y = int(floor(y_percent * 0.01 * context_height));
     view.width = int(floor(width_percent * 0.01 * context_width));
     view.height = int(floor(height_percent * 0.01 * context_height));
-
 
     // init FBO
 
@@ -634,15 +635,15 @@ namespace blunted {
 
     switch (cullingMode) {
 
-      case e_CullingMode_Off:     glDisable(GL_CULL_FACE);
+      case e_CullingMode_Off:     mapping.glDisable(GL_CULL_FACE);
                                   break;
 
-      case e_CullingMode_Front:   glEnable(GL_CULL_FACE);
-                                  glCullFace(GL_FRONT);
+      case e_CullingMode_Front:   mapping.glEnable(GL_CULL_FACE);
+                                  mapping.glCullFace(GL_FRONT);
                                   break;
 
-      case e_CullingMode_Back:    glEnable(GL_CULL_FACE);
-                                  glCullFace(GL_BACK);
+      case e_CullingMode_Back:    mapping.glEnable(GL_CULL_FACE);
+                                  mapping.glCullFace(GL_BACK);
                                   break;
     }
   }
@@ -650,10 +651,10 @@ namespace blunted {
   void OpenGLRenderer3D::SetBlendingMode(e_BlendingMode blendingMode) {
     switch (blendingMode) {
 
-      case e_BlendingMode_Off:    glDisable(GL_BLEND);
+      case e_BlendingMode_Off:    mapping.glDisable(GL_BLEND);
                                   break;
 
-      case e_BlendingMode_On:     glEnable(GL_BLEND);
+      case e_BlendingMode_On:     mapping.glEnable(GL_BLEND);
                                   break;
     }
   }
@@ -679,72 +680,72 @@ namespace blunted {
     GLenum func1 = GetGLBlendingFunction(blendingFunction1);
     GLenum func2 = GetGLBlendingFunction(blendingFunction2);
 
-    glBlendFunc(func1, func2);
+    mapping.glBlendFunc(func1, func2);
   }
 
   void OpenGLRenderer3D::SetDepthFunction(e_DepthFunction depthFunction) {
     switch (depthFunction) {
 
-      case e_DepthFunction_Never:           glDepthFunc(GL_NEVER);
+      case e_DepthFunction_Never:           mapping.glDepthFunc(GL_NEVER);
                                             break;
 
-      case e_DepthFunction_Equal:           glDepthFunc(GL_EQUAL);
+      case e_DepthFunction_Equal:           mapping.glDepthFunc(GL_EQUAL);
                                             break;
 
-      case e_DepthFunction_Greater:         glDepthFunc(GL_GREATER);
+      case e_DepthFunction_Greater:         mapping.glDepthFunc(GL_GREATER);
                                             break;
 
-      case e_DepthFunction_Less:            glDepthFunc(GL_LESS);
+      case e_DepthFunction_Less:            mapping.glDepthFunc(GL_LESS);
                                             break;
 
-      case e_DepthFunction_GreaterOrEqual:  glDepthFunc(GL_GEQUAL);
+      case e_DepthFunction_GreaterOrEqual:  mapping.glDepthFunc(GL_GEQUAL);
                                             break;
 
-      case e_DepthFunction_LessOrEqual:     glDepthFunc(GL_LEQUAL);
+      case e_DepthFunction_LessOrEqual:     mapping.glDepthFunc(GL_LEQUAL);
                                             break;
 
-      case e_DepthFunction_NotEqual:        glDepthFunc(GL_NOTEQUAL);
+      case e_DepthFunction_NotEqual:        mapping.glDepthFunc(GL_NOTEQUAL);
                                             break;
 
-      case e_DepthFunction_Always:          glDepthFunc(GL_ALWAYS);
+      case e_DepthFunction_Always:          mapping.glDepthFunc(GL_ALWAYS);
                                             break;
     }
   }
 
   void OpenGLRenderer3D::SetDepthTesting(bool OnOff) {
     if (OnOff) {
-      glEnable(GL_DEPTH_TEST);
+      mapping.glEnable(GL_DEPTH_TEST);
     } else {
-      glDisable(GL_DEPTH_TEST);
+      mapping.glDisable(GL_DEPTH_TEST);
     }
   }
 
   void OpenGLRenderer3D::SetDepthMask(bool OnOff) {
     if (OnOff) {
-      glDepthMask(GL_TRUE);
+      mapping.glDepthMask(GL_TRUE);
     } else {
-      glDepthMask(GL_FALSE);
+      mapping.glDepthMask(GL_FALSE);
     }
   }
 
   void OpenGLRenderer3D::SetTextureMode(e_TextureMode textureMode) {
-    // todo: err its not a mode i guess
+
     switch (textureMode) {
 
-      case e_TextureMode_Off:     glDisable(GL_TEXTURE_2D);
+      case e_TextureMode_Off:     mapping.glDisable(GL_TEXTURE_2D);
                                   break;
 
-      case e_TextureMode_2D:      glEnable(GL_TEXTURE_2D);
+      case e_TextureMode_2D:      mapping.glEnable(GL_TEXTURE_2D);
                                   break;
     }
   }
 
   void OpenGLRenderer3D::SetColor(const Vector3 &color, float alpha) {
-    glColor4f(color.coords[0], color.coords[1], color.coords[2], alpha);
+    mapping.glColor4f(color.coords[0], color.coords[1], color.coords[2], alpha);
   }
 
   void OpenGLRenderer3D::SetColorMask(bool r, bool g, bool b, bool alpha) {
-    glColorMask(r, g, b, alpha);
+    mapping.glColorMask(r, g, b, alpha);
   }
 
   void OpenGLRenderer3D::ClearBuffer(const Vector3 &color, bool clearDepth, bool clearColor) {
@@ -755,7 +756,7 @@ namespace blunted {
     GLbitfield mask = 0;
     if (clearDepth) mask |= GL_DEPTH_BUFFER_BIT;
     if (clearColor) mask |= GL_COLOR_BUFFER_BIT;
-    glClear(mask);
+    mapping.glClear(mask);
   }
 
   Matrix4 OpenGLRenderer3D::CreatePerspectiveMatrix(float aspectRatio, float nearCap, float farCap) {
@@ -829,10 +830,10 @@ namespace blunted {
     return GLfunc;
   }
 
-  VertexBufferID OpenGLRenderer3D::CreateVertexBuffer(float *vertices, unsigned int verticesDataSize, std::vector<unsigned int> indices, e_VertexBufferUsage usage) {
-
-    GLuint iid; // element indices
-    unsigned int vertexArrayID;
+  VertexBufferID OpenGLRenderer3D::CreateVertexBuffer(float *vertices, unsigned int verticesDataSize, const std::vector<unsigned int>& c_indices, e_VertexBufferUsage usage) {
+    std::vector<unsigned int> indices = c_indices;
+    GLuint iid = 0; // element indices
+    unsigned int vertexArrayID = 0;
 
     bool pingPong = false;
     if (usage == e_VertexBufferUsage_DynamicDraw || usage == e_VertexBufferUsage_DynamicRead || usage == e_VertexBufferUsage_DynamicCopy ||
@@ -845,21 +846,21 @@ namespace blunted {
     int firstArray_id = 0;
 
     for (int b = 0; b < number; b++) {
-      GLuint vid;
-      glGenVertexArrays(1, &vid);
-      glBindVertexArray(vid);
+      GLuint vid = 0;
+      mapping.glGenVertexArrays(1, &vid);
+      mapping.glBindVertexArray(vid);
       vertexArrayID = vid;
       if (b == 0) firstArray_id = vertexArrayID;
 
 
-      GLuint bid;
-      glGenBuffers(1, &bid);
+      GLuint bid = 0;
+      mapping.glGenBuffers(1, &bid);
       int buffer_id = bid;
       if (b == 0) firstBuffer_id = buffer_id;
       //printf("array size: %i\n", triangleCount * 3 * 3);
-      glBindBuffer(GL_ARRAY_BUFFER, buffer_id);
-      glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), NULL, GetGLVertexBufferUsage(usage));
-      glBufferSubData(GL_ARRAY_BUFFER, 0, verticesDataSize * sizeof(float), vertices);
+      mapping.glBindBuffer(GL_ARRAY_BUFFER, buffer_id);
+      mapping.glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), NULL, GetGLVertexBufferUsage(usage));
+      mapping.glBufferSubData(GL_ARRAY_BUFFER, 0, verticesDataSize * sizeof(float), vertices);
 
 
       // generate a buffer for the indices
@@ -869,16 +870,16 @@ namespace blunted {
           indices.push_back(i);
         }
       }
-      glGenBuffers(1, &iid);
-      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iid);
-      glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), NULL, GetGLVertexBufferUsage(usage));
-      glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(unsigned int), &indices[0]);
+      mapping.glGenBuffers(1, &iid);
+      mapping.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iid);
+      mapping.glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), NULL, GetGLVertexBufferUsage(usage));
+      mapping.glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(unsigned int), &indices[0]);
 
 
       #define BUFFER_OFFSET( i ) ((char *)NULL + (i))
       for (int i = 0; i < GetTriangleMeshElementCount(); i++) {
-        glVertexAttribPointer((GLuint)i, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(verticesDataSize / GetTriangleMeshElementCount() * i * sizeof(float)));
-        glEnableVertexAttribArray(i);
+        mapping.glVertexAttribPointer((GLuint)i, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(verticesDataSize / GetTriangleMeshElementCount() * i * sizeof(float)));
+        mapping.glEnableVertexAttribArray(i);
       }
 
       if (b == 1) {
@@ -888,10 +889,10 @@ namespace blunted {
       }
     }
 
-    glBindVertexArray(0);
+    mapping.glBindVertexArray(0);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    mapping.glBindBuffer(GL_ARRAY_BUFFER, 0);
+    mapping.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     VertexBufferID vertexBufferID;
     vertexBufferID.bufferID = firstBuffer_id;
@@ -930,8 +931,8 @@ namespace blunted {
 
     }
 
-    glBindVertexArray((GLuint)writeVertexArrayID);
-    glBindBuffer(GL_ARRAY_BUFFER, writeVertexBufferID); // todo: why is this necessary? shouldn't this be part of the vao?
+    mapping.glBindVertexArray((GLuint)writeVertexArrayID);
+    mapping.glBindBuffer(GL_ARRAY_BUFFER, writeVertexBufferID);
 
     //glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), vertices, GL_DYNAMIC_DRAW);
 
@@ -947,11 +948,11 @@ namespace blunted {
       // the next 2 statements, as well as the invalidate_bit stuff in the 3rd statement, should do the same thing: orphaning the vertexbuffer.
       // however, on my current AMD (HD 6850), only the first seems to actually work! is this an AMD driver bug? can't find anything about it on the interwebz..
 
-      glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+    mapping.glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), NULL, GL_DYNAMIC_DRAW);
       //glInvalidateBufferData(vertexBufferID.bufferID);
-      float *ptr = (float*)glMapBufferRange(GL_ARRAY_BUFFER, 0, verticesDataSize * sizeof(float), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT); // GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_INVALIDATE_RANGE_BIT |
+      float *ptr = (float*)mapping.glMapBufferRange(GL_ARRAY_BUFFER, 0, verticesDataSize * sizeof(float), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT); // GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_INVALIDATE_RANGE_BIT |
       memcpy(ptr, vertices, verticesDataSize * sizeof(float));
-      glUnmapBuffer(GL_ARRAY_BUFFER);
+      mapping.glUnmapBuffer(GL_ARRAY_BUFFER);
 
 //      glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), vertices, GL_DYNAMIC_DRAW);
 
@@ -971,31 +972,31 @@ namespace blunted {
 */
     //VAOfence.insert(std::pair<int, GLsync>(writeVertexArrayID, syncObj));
 
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+      mapping.glBindVertexArray(0);
+      mapping.glBindBuffer(GL_ARRAY_BUFFER, 0);
   }
 
   void OpenGLRenderer3D::DeleteVertexBuffer(VertexBufferID vertexBufferID) {
     GLuint glVertexBufferID = vertexBufferID.bufferID;
-    glDeleteBuffers(1, &glVertexBufferID);
+    mapping.glDeleteBuffers(1, &glVertexBufferID);
 
     GLuint glElementArrayID = vertexBufferID.elementArrayID;
-    glDeleteBuffers(1, &glElementArrayID);
+    mapping.glDeleteBuffers(1, &glElementArrayID);
 
     GLuint glVertexArrayID = vertexBufferID.vertexArrayID;
-    glDeleteVertexArrays(1, &glVertexArrayID);
+    mapping.glDeleteVertexArrays(1, &glVertexArrayID);
 
     std::map<int, int>::iterator pingPongIter = VBOPingPongMap.find(vertexBufferID.bufferID);
     if (pingPongIter != VBOPingPongMap.end()) {
       glVertexBufferID = pingPongIter->second;
-      glDeleteBuffers(1, &glVertexBufferID);
+      mapping.glDeleteBuffers(1, &glVertexBufferID);
       VBOPingPongMap.erase(pingPongIter);
     }
 
     pingPongIter = VAOPingPongMap.find(vertexBufferID.vertexArrayID);
     if (pingPongIter != VAOPingPongMap.end()) {
       glVertexArrayID = pingPongIter->second;
-      glDeleteVertexArrays(1, &glVertexArrayID);
+      mapping.glDeleteVertexArrays(1, &glVertexArrayID);
       VAOPingPongMap.erase(pingPongIter);
     }
 
@@ -1018,7 +1019,7 @@ namespace blunted {
     // draw buffer
     if (count > 0) {
       #define BUFFER_OFFSET( i ) ((char *)NULL + (i))
-      glDrawRangeElements(GL_TRIANGLES, startIndex, startIndex + count, count, GL_UNSIGNED_INT, BUFFER_OFFSET(startIndex * sizeof(unsigned int)));
+      mapping.glDrawRangeElements(GL_TRIANGLES, startIndex, startIndex + count, count, GL_UNSIGNED_INT, BUFFER_OFFSET(startIndex * sizeof(unsigned int)));
     }
   }
 
@@ -1037,9 +1038,9 @@ namespace blunted {
     VertexBuffer *vertexBuffer;
 
     if (renderMode != e_RenderMode_GeometryOnly) {
-      glEnable(GL_TEXTURE_2D);
+      mapping.glEnable(GL_TEXTURE_2D);
     } else {
-      glDisable(GL_TEXTURE_2D);
+      mapping.glDisable(GL_TEXTURE_2D);
     }
     // if (renderMode == e_RenderMode_GeometryOnly || renderMode == e_RenderMode_Diffuse) {
     //   glDisable(GL_LIGHTING);
@@ -1102,7 +1103,7 @@ namespace blunted {
 */
 
         currentBoundBuffer = vaoID;
-        glBindVertexArray(vaoID);
+        mapping.glBindVertexArray(vaoID);
         //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexBuffer->GetElementID());
 /*
         if (renderMode != e_RenderMode_GeometryOnly) {
@@ -1127,13 +1128,13 @@ namespace blunted {
           startIndex = 0;
           count = 0;
         }
-        int startIndex;
-        int count;
+        int startIndex = 0;
+        int count = 0;
       };
       BufferChunk bufferChunk;
 
-      std::deque<VertexBufferIndex>::const_iterator vertexBufferIter = queueEntry->vertexBufferIndices.begin();
-      while (vertexBufferIter != queueEntry->vertexBufferIndices.end()) {
+      auto vertexBufferIter = queueEntry->vertexBufferIndices->begin();
+      while (vertexBufferIter != queueEntry->vertexBufferIndices->end()) {
 
         //VertexBufferIndex *vbIndex = (*vertexBufferIter).get();
         const VertexBufferIndex *vbIndex = &(*vertexBufferIter);
@@ -1179,20 +1180,20 @@ namespace blunted {
             if (renderMode == e_RenderMode_Full) {
               if (has_normal && normalTextureID != currentNormalTextureID) {
                 SetTextureUnit(1);
-                glBindTexture(GL_TEXTURE_2D, normalTextureID);
+                mapping.glBindTexture(GL_TEXTURE_2D, normalTextureID);
               }
               if (has_specular && specularTextureID != currentSpecularTextureID) {
                 SetTextureUnit(2);
-                glBindTexture(GL_TEXTURE_2D, specularTextureID);
+                mapping.glBindTexture(GL_TEXTURE_2D, specularTextureID);
               }
               if (has_illumination && illuminationTextureID != currentIlluminationTextureID) {
                 SetTextureUnit(3);
-                glBindTexture(GL_TEXTURE_2D, illuminationTextureID);
+                mapping.glBindTexture(GL_TEXTURE_2D, illuminationTextureID);
               }
             }
 
             SetTextureUnit(0);
-            glBindTexture(GL_TEXTURE_2D, diffuseTextureID);
+            mapping.glBindTexture(GL_TEXTURE_2D, diffuseTextureID);
 
             if (renderMode == e_RenderMode_Full) {
               //SetUniformFloat("simple", "shininess", vbIndex->material.shininess * 60 + 1);
@@ -1237,7 +1238,7 @@ namespace blunted {
 
         vertexBufferIter++;
 
-        if (sequential) if (vertexBufferIter == queueEntry->vertexBufferIndices.end()) {
+        if (sequential) if (vertexBufferIter == queueEntry->vertexBufferIndices->end()) {
           DrawBufferChunk(bufferChunk.startIndex, bufferChunk.count);
           sequential = false;
         }
@@ -1252,131 +1253,131 @@ namespace blunted {
     if (renderMode != e_RenderMode_GeometryOnly) {
       if (renderMode == e_RenderMode_Full) {
         SetTextureUnit(1);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        mapping.glBindTexture(GL_TEXTURE_2D, 0);
         SetTextureUnit(2);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        mapping.glBindTexture(GL_TEXTURE_2D, 0);
         SetTextureUnit(3);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        mapping.glBindTexture(GL_TEXTURE_2D, 0);
       }
       SetTextureUnit(0);
-      glBindTexture(GL_TEXTURE_2D, 0);
-      glDisable(GL_TEXTURE_2D);
+      mapping.glBindTexture(GL_TEXTURE_2D, 0);
+      mapping.glDisable(GL_TEXTURE_2D);
     }
 
-    glBindVertexArray(0);
+    mapping.glBindVertexArray(0);
   }
 
   void OpenGLRenderer3D::RenderAABB(std::list<VertexBufferQueueEntry> &vertexBufferQueue) {
 
-    glDisable(GL_LIGHTING);
-    glPolygonMode(GL_FRONT, GL_FILL);
-    glColor3f(0, 1, 0);
+    mapping.glDisable(GL_LIGHTING);
+    mapping.glPolygonMode(GL_FRONT, GL_FILL);
+    mapping.glColor3f(0, 1, 0);
 
-    glBegin(GL_LINES);
+    mapping.glBegin(GL_LINES);
 
     std::list<VertexBufferQueueEntry>::iterator vertexBufferQueueIter = vertexBufferQueue.begin();
     while (vertexBufferQueueIter != vertexBufferQueue.end()) {
       VertexBufferQueueEntry *queueEntry = &(*vertexBufferQueueIter);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-
-
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
       vertexBufferQueueIter++;
     }
 
-    glEnd();
+    mapping.glEnd();
 
   }
 
   void OpenGLRenderer3D::RenderAABB(std::list<LightQueueEntry> &lightQueue) {
 
-    glDisable(GL_LIGHTING);
-    glPolygonMode(GL_FRONT, GL_FILL);
-    glColor3f(0, 0, 1);
+    mapping.glDisable(GL_LIGHTING);
+    mapping.glPolygonMode(GL_FRONT, GL_FILL);
+    mapping.glColor3f(0, 0, 1);
 
-    glBegin(GL_LINES);
+    mapping.glBegin(GL_LINES);
 
     std::list<LightQueueEntry>::iterator lightQueueIter = lightQueue.begin();
     while (lightQueueIter != lightQueue.end()) {
       LightQueueEntry *queueEntry = &(*lightQueueIter);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-
-
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
-      glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.minxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.minxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
+
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.minxyz.coords[2]);
+      mapping.glVertex3f(queueEntry->aabb.maxxyz.coords[0], queueEntry->aabb.maxxyz.coords[1], queueEntry->aabb.maxxyz.coords[2]);
 
       lightQueueIter++;
     }
 
-    glEnd();
+    mapping.glEnd();
   }
 
 
@@ -1389,16 +1390,16 @@ namespace blunted {
     //printf("%f %f %f\n", cameraPos.coords[0], cameraPos.coords[1], cameraPos.coords[2]);
 
     GLfloat positionF[4] = { pos.coords[0], pos.coords[1], pos.coords[2], 1.0 };
-    glLightfv(GL_LIGHT0, GL_POSITION, positionF);
+    mapping.glLightfv(GL_LIGHT0, GL_POSITION, positionF);
     SetUniformFloat3(currentShader->first, "lightPosition", pos.coords[0], pos.coords[1], pos.coords[2]);
 
     GLfloat diffuseF[4] = { color.coords[0], color.coords[1], color.coords[2], radius };
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseF);
+    mapping.glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseF);
 
     GLfloat specular[3] = { 1, 1, 1 };
-    glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+    mapping.glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
 
-    glEnable(GL_LIGHT0);
+    mapping.glEnable(GL_LIGHT0);
   }
 
 
@@ -1411,7 +1412,7 @@ namespace blunted {
 
       case e_PixelFormat_Alpha:          format = GL_ALPHA; break;
       case e_PixelFormat_RGB:            format = GL_RGB; break;
-      case e_PixelFormat_RGBA:           format = GL_RGBA; break; // todo: BGRA preferred on windows?
+      case e_PixelFormat_RGBA:           format = GL_RGBA; break;
       case e_PixelFormat_DepthComponent: format = GL_DEPTH_COMPONENT; break;
       case e_PixelFormat_Luminance:      format = GL_LUMINANCE; break;
     }
@@ -1453,8 +1454,8 @@ namespace blunted {
     }
 */
 
-    GLuint texID;
-    glGenTextures(1, &texID);
+    GLuint texID = 0;
+    mapping.glGenTextures(1, &texID);
     BindTexture(texID);
 
     GLint filter_min, filter_mag;
@@ -1467,18 +1468,18 @@ namespace blunted {
       filter_mag = GL_NEAREST;
     }
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_min);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mag);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_min);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mag);
     if (internalPixelFormat == e_InternalPixelFormat_DepthComponent16 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent24 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent32 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent32F) {
       //XXglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
       if (compareDepth) {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+        mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
       }
 //      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 //      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1490,14 +1491,13 @@ namespace blunted {
     }
 
     if (filter) {
-      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest_supported_anisotropy);
+      mapping.glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest_supported_anisotropy);
     }
 
     if (!multisample) {
-      glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), GL_UNSIGNED_BYTE, NULL);
+      mapping.glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), GL_UNSIGNED_BYTE, NULL);
     } else {
-      // todo: needs opengl 3.2 libs!
-      //glTexImage2DMultiSample(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, 5, GetGLInternalPixelFormat(internalPixelFormat), width, height, GL_TRUE);
+
     }
 
 /* test if this actually helps
@@ -1523,26 +1523,26 @@ namespace blunted {
       filter_min = (mipmaps) ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
       filter_mag = GL_LINEAR;
       //glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest_supported_anisotropy);
-      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest_supported_anisotropy);
+      mapping.glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest_supported_anisotropy);
     } else {
       filter_min = (mipmaps) ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST;
       filter_mag = GL_NEAREST;
     }
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_min);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mag);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (repeat) ? GL_REPEAT : GL_CLAMP_TO_EDGE);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_min);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mag);
     if (internalPixelFormat == e_InternalPixelFormat_DepthComponent16 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent24 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent32 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent32F) {
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
-      glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_INTENSITY);
+      mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+      mapping.glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_INTENSITY);
     }
 
     if (mipmaps) {
-      glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
+      mapping.glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
     }
 
     int x = 0;
@@ -1551,7 +1551,7 @@ namespace blunted {
     int height = source->h;
 
     SDL_LockSurface(source);
-    glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), GL_UNSIGNED_BYTE, source->pixels);
+    mapping.glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), GL_UNSIGNED_BYTE, source->pixels);
     SDL_UnlockSurface(source);
 
     //GLclampf prior = (width * height) / 1048576.0; // 1024*1024 tex = max priority
@@ -1563,7 +1563,7 @@ namespace blunted {
 
   void OpenGLRenderer3D::UpdateTexture(int textureID, SDL_Surface *source, bool alpha, bool mipmaps) {
 
-    glBindTexture(GL_TEXTURE_2D, textureID);
+    mapping.glBindTexture(GL_TEXTURE_2D, textureID);
 
     GLint type1 = GL_RGBA8;
     GLint type2 = (alpha) ? GL_RGBA : GL_RGB;
@@ -1581,20 +1581,20 @@ namespace blunted {
       filter_min = (mipmaps) ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
       filter_mag = GL_LINEAR;
       //glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest_supported_anisotropy);
-      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest_supported_anisotropy);
+      mapping.glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest_supported_anisotropy);
     } else {
       filter_min = (mipmaps) ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST;
       filter_mag = GL_NEAREST;
     }
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_min);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mag);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_min);
+    mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mag);
 
     if (mipmaps) {
-      glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
+      mapping.glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
     }
     SDL_LockSurface(source);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, type2, GL_UNSIGNED_BYTE, source->pixels);
+    mapping.glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, type2, GL_UNSIGNED_BYTE, source->pixels);
 
     SDL_UnlockSurface(source);
 
@@ -1604,29 +1604,29 @@ namespace blunted {
   void OpenGLRenderer3D::DeleteTexture(int textureID) {
     GLuint texID = textureID;
     //printf("deleting tex id: %i\n", textureID);
-    glDeleteTextures(1, &texID);
+    mapping.glDeleteTextures(1, &texID);
   }
 
   void OpenGLRenderer3D::CopyFrameBufferToTexture(int textureID, int width, int height) {
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+    mapping.glBindTexture(GL_TEXTURE_2D, textureID);
+    mapping.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
   }
 
   void OpenGLRenderer3D::BindTexture(int textureID) {
-    glBindTexture(GL_TEXTURE_2D, (GLuint)textureID);
+    mapping.glBindTexture(GL_TEXTURE_2D, (GLuint)textureID);
   }
 
   void OpenGLRenderer3D::SetTextureUnit(int textureUnit) {
     if (textureUnit != _cache_activeTextureUnit) {
       //assert(glActiveTexture);
-      glActiveTexture(GL_TEXTURE0 + (GLuint)textureUnit);
+      mapping.glActiveTexture(GL_TEXTURE0 + (GLuint)textureUnit);
       _cache_activeTextureUnit = textureUnit;
     }
   }
 
   void OpenGLRenderer3D::SetClientTextureUnit(int textureUnit) {
     //assert(glClientActiveTexture);
-    glClientActiveTexture(GL_TEXTURE0 + (GLuint)textureUnit);
+    mapping.glClientActiveTexture(GL_TEXTURE0 + (GLuint)textureUnit);
   }
 
 
@@ -1652,30 +1652,30 @@ namespace blunted {
   }
 
   int OpenGLRenderer3D::CreateFrameBuffer() {
-    GLuint id;
-    glGenFramebuffers(1, &id);
+    GLuint id = 0;
+    mapping.glGenFramebuffers(1, &id);
     return id;
   }
 
   void OpenGLRenderer3D::DeleteFrameBuffer(int fbID) {
     const GLuint id = fbID;
-    glDeleteFramebuffers(1, &id);
+    mapping.glDeleteFramebuffers(1, &id);
   }
 
   void OpenGLRenderer3D::BindFrameBuffer(int fbID) {
-    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)fbID);
+    mapping.glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)fbID);
   }
 
   void OpenGLRenderer3D::SetFrameBufferRenderBuffer(e_TargetAttachment targetAttachment, int rbID) {
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GetGLTargetAttachment(targetAttachment), GL_RENDERBUFFER, rbID);
+    mapping.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GetGLTargetAttachment(targetAttachment), GL_RENDERBUFFER, rbID);
   }
 
   void OpenGLRenderer3D::SetFrameBufferTexture2D(e_TargetAttachment targetAttachment, int texID) {
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GetGLTargetAttachment(targetAttachment), GL_TEXTURE_2D, texID, 0);
+    mapping.glFramebufferTexture2D(GL_FRAMEBUFFER, GetGLTargetAttachment(targetAttachment), GL_TEXTURE_2D, texID, 0);
   }
 
   bool OpenGLRenderer3D::CheckFrameBufferStatus() {
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    GLenum status = mapping.glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status == GL_FRAMEBUFFER_COMPLETE) {
       Log(e_Notice, "OpenGLRenderer3D", "CheckFrameBufferStatus", "Framebuffer state #" + int_to_str(status));
       return true;
@@ -1689,22 +1689,22 @@ namespace blunted {
   // render buffers
 
   int OpenGLRenderer3D::CreateRenderBuffer() {
-    GLuint id;
-    glGenRenderbuffers(1, &id);
+    GLuint id = 0;
+    mapping.glGenRenderbuffers(1, &id);
     return id;
   }
 
   void OpenGLRenderer3D::DeleteRenderBuffer(int rbID) {
     GLuint glrbID = rbID;
-    glDeleteRenderbuffers(1, &glrbID);
+    mapping.glDeleteRenderbuffers(1, &glrbID);
   }
 
   void OpenGLRenderer3D::BindRenderBuffer(int rbID) {
-    glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)rbID);
+    mapping.glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)rbID);
   }
 
   void OpenGLRenderer3D::SetRenderBufferStorage(e_InternalPixelFormat internalPixelFormat, int width, int height) {
-    glRenderbufferStorage(GL_RENDERBUFFER, GetGLInternalPixelFormat(internalPixelFormat), width, height);
+    mapping.glRenderbufferStorage(GL_RENDERBUFFER, GetGLInternalPixelFormat(internalPixelFormat), width, height);
   }
 
 
@@ -1715,7 +1715,7 @@ namespace blunted {
     for (int i = 0; i < (signed int)targetAttachments.size(); i++) {
       targets[i] = GetGLTargetAttachment(targetAttachments.at(i));
     }
-    glDrawBuffers(targetAttachments.size(), targets);
+    mapping.glDrawBuffers(targetAttachments.size(), targets);
   }
 
 
@@ -1726,15 +1726,15 @@ namespace blunted {
   }
 
   void OpenGLRenderer3D::PushAttribute(int attr) {
-    glPushAttrib((GLbitfield)attr);
+    mapping.glPushAttrib((GLbitfield)attr);
   }
 
   void OpenGLRenderer3D::PopAttribute() {
-    glPopAttrib();
+    mapping.glPopAttrib();
   }
 
   void OpenGLRenderer3D::SetViewport(int x, int y, int width, int height) {
-    glViewport(x, y, width, height);
+    mapping.glViewport(x, y, width, height);
   }
 
   void OpenGLRenderer3D::GetContextSize(int &width, int &height, int &bpp) {
@@ -1744,7 +1744,7 @@ namespace blunted {
   }
 
   void OpenGLRenderer3D::SetPolygonOffset(float scale, float bias) {
-    glPolygonOffset(scale, bias); // hint: doesn't work with glsl since i'm using my own calculations
+    mapping.glPolygonOffset(scale, bias); // hint: doesn't work with glsl since i'm using my own calculations
   }
 
   // shaders
@@ -1760,23 +1760,23 @@ namespace blunted {
     }
 
    	const char *sourceChar = source_flat.c_str();
-   	glShaderSource(shaderID, 1, &sourceChar, NULL);
-    glCompileShader(shaderID);
+   	mapping.glShaderSource(shaderID, 1, &sourceChar, NULL);
+   	mapping.glCompileShader(shaderID);
 
-    GLint compiled;
-    glGetShaderiv(shaderID, GL_COMPILE_STATUS, &compiled);
+    GLint compiled = 0;
+    mapping.glGetShaderiv(shaderID, GL_COMPILE_STATUS, &compiled);
     if (compiled == GL_FALSE) {
-      //printf("shader compilation error (%s)\n", filename.c_str());
+      printf("shader compilation error (%s)\n", filename.c_str());
       Log(e_Warning, "", "LoadGLShader", "shader compilation error (" + filename + ")");
     }
 
     GLint blen = 0;
     GLsizei slen = 0;
-    glGetShaderiv(shaderID, GL_INFO_LOG_LENGTH , &blen);
+    mapping.glGetShaderiv(shaderID, GL_INFO_LOG_LENGTH , &blen);
     if (blen > 1) {
       GLchar* compiler_log = (GLchar*)malloc(blen);
-      glGetInfoLogARB(shaderID, blen, &slen, compiler_log);
-      //printf("shader compilation info: %s\n", compiler_log);
+      mapping.glGetInfoLogARB(shaderID, blen, &slen, compiler_log);
+      printf("shader compilation info: %s\n", compiler_log);
       Log(e_Warning, "", "LoadGLShader", "shader compilation info (" + filename + "):\n" + std::string(compiler_log));
       free(compiler_log);
     }
@@ -1798,16 +1798,14 @@ namespace blunted {
         // first, create a set of candidates. all these are on the 'hull' of a hemisphere.
 
         for (unsigned int candidate = 0; candidate < candidateSize; candidate++) {
-          //candidates[candidate] = Vector3(random(-1.0f, 1.0f), random(-1.0f, 1.0f), random(0.001f, 1.0f));
-          //candidates[candidate] = candidates[candidate].GetNormalized(0) * random(0.001f, 1.0f);
-
           // http://www.pouet.net/topic.php?which=9613&page=1 (evenly distributed points on hemisphere)
           // "To generate uniformly distributed random points on a sphere, you generate them on a unit cylinder (but not the caps), and project onto the sphere. While it's not intuitive to see, this actually gives uniform distribution."
           // (also see page 2 for corrections!)
-          float s = random(0.0f, 2.0f * pi);
-          float t = random(-1.0f, 1.0f);
-          float m = sqrt(1.0f - t * t);
-          candidates[candidate] = Vector3(sin(s) * m, cos(s) * m, fabs(t)); // fabs for hemi
+          float s = random_non_determ(0.0f, 2.0f * pi);
+          float t = random_non_determ(-1.0f, 1.0f);
+          float m = std::sqrt(1.0f - t * t);
+          candidates[candidate] = Vector3(std::sin(s) * m, std::cos(s) * m,
+                                          fabs(t));  // fabs for hemi
         }
 
 
@@ -1836,7 +1834,8 @@ namespace blunted {
         // third, randomize the length, so the samples fill the volume.
 
         float minDistance = 0.14f;
-        samples[i] = samples[i].GetNormalized(0) * random(minDistance, 1.0f);
+        samples[i] = samples[i].GetNormalized(0) *
+            random_non_determ(minDistance, 1.0f);
 
         // information around the normal vec is most useful
         samples[i] = samples[i] * 0.75f + Vector3(0, 0, 1) * 0.25f;
@@ -1909,63 +1908,64 @@ namespace blunted {
   }
 
   void OpenGLRenderer3D::LoadShader(const std::string &name, const std::string &filename) {
-    GLint info;
+    GLint info = 0;
 
     Shader shader;
     shader.name = filename;
 
-    shader.vertexShaderID = glCreateShader(GL_VERTEX_SHADER);
+    shader.vertexShaderID = mapping.glCreateShader(GL_VERTEX_SHADER);
     LoadGLShader(shader.vertexShaderID, filename + ".vert");
-    glGetShaderiv(shader.vertexShaderID, GL_COMPILE_STATUS, &info);
-    if (info != GL_TRUE || glIsShader(shader.vertexShaderID) != GL_TRUE) {
-      Log(e_FatalError, "OpenGLRenderer3D", "LoadShader", "Could not compile vertex program: " + name);
+    mapping.glGetShaderiv(shader.vertexShaderID, GL_COMPILE_STATUS, &info);
+    if (info != GL_TRUE || mapping.glIsShader(shader.vertexShaderID) != GL_TRUE) {
+      printf("%d %d\n", info, mapping.glIsShader(shader.vertexShaderID));
+      Log(e_FatalError, "OpenGLRenderer3D", "LoadShader", "1Could not compile vertex program: " + name);
     }
 
-    shader.fragmentShaderID = glCreateShader(GL_FRAGMENT_SHADER);
+    shader.fragmentShaderID = mapping.glCreateShader(GL_FRAGMENT_SHADER);
     LoadGLShader(shader.fragmentShaderID, filename + ".frag");
-    glGetShaderiv(shader.fragmentShaderID, GL_COMPILE_STATUS, &info);
-    if (info != GL_TRUE || glIsShader(shader.fragmentShaderID) != GL_TRUE) {
-      Log(e_FatalError, "OpenGLRenderer3D", "LoadShader", "Could not compile fragment program: " + name);
+    mapping.glGetShaderiv(shader.fragmentShaderID, GL_COMPILE_STATUS, &info);
+    if (info != GL_TRUE || mapping.glIsShader(shader.fragmentShaderID) != GL_TRUE) {
+      Log(e_FatalError, "OpenGLRenderer3D", "LoadShader", "2Could not compile fragment program: " + name);
     }
 
-    shader.programID = glCreateProgram();
-    glAttachShader(shader.programID, shader.vertexShaderID);
-    glAttachShader(shader.programID, shader.fragmentShaderID);
+    shader.programID = mapping.glCreateProgram();
+    mapping.glAttachShader(shader.programID, shader.vertexShaderID);
+    mapping.glAttachShader(shader.programID, shader.fragmentShaderID);
 
     shaders.insert(std::pair<std::string, Shader>(name, shader));
 
     if (name == "zphase") {
-      glBindAttribLocation(shader.programID, 0, "position");
-      glBindFragDataLocation(shader.programID, 0, "stdout");
+      mapping.glBindAttribLocation(shader.programID, 0, "position");
+      mapping.glBindFragDataLocation(shader.programID, 0, "stdout");
     }
     if (name == "simple") {
-      glBindAttribLocation(shader.programID, 0, "position");
-      glBindAttribLocation(shader.programID, 1, "normal");
-      glBindAttribLocation(shader.programID, 2, "texcoord");
-      glBindAttribLocation(shader.programID, 3, "tangent");
-      glBindAttribLocation(shader.programID, 4, "bitangent");
-      glBindFragDataLocation(shader.programID, 0, "stdout0");
-      glBindFragDataLocation(shader.programID, 1, "stdout1");
-      glBindFragDataLocation(shader.programID, 2, "stdout2");
+      mapping.glBindAttribLocation(shader.programID, 0, "position");
+      mapping.glBindAttribLocation(shader.programID, 1, "normal");
+      mapping.glBindAttribLocation(shader.programID, 2, "texcoord");
+      mapping.glBindAttribLocation(shader.programID, 3, "tangent");
+      mapping.glBindAttribLocation(shader.programID, 4, "bitangent");
+      mapping.glBindFragDataLocation(shader.programID, 0, "stdout0");
+      mapping.glBindFragDataLocation(shader.programID, 1, "stdout1");
+      mapping.glBindFragDataLocation(shader.programID, 2, "stdout2");
     }
     if (name == "ambient") {
-      glBindAttribLocation(shader.programID, 0, "position");
-      glBindFragDataLocation(shader.programID, 0, "stdout");
+      mapping.glBindAttribLocation(shader.programID, 0, "position");
+      mapping.glBindFragDataLocation(shader.programID, 0, "stdout");
     }
     if (name == "lighting") {
-      glBindFragDataLocation(shader.programID, 0, "stdout0");
-      glBindFragDataLocation(shader.programID, 1, "stdout1");
+      mapping.glBindFragDataLocation(shader.programID, 0, "stdout0");
+      mapping.glBindFragDataLocation(shader.programID, 1, "stdout1");
     }
     if (name == "postprocess") {
-      glBindAttribLocation(shader.programID, 0, "position");
-      glBindFragDataLocation(shader.programID, 0, "stdout");
+      mapping.glBindAttribLocation(shader.programID, 0, "position");
+      mapping.glBindFragDataLocation(shader.programID, 0, "stdout");
     }
 
-    glLinkProgram(shader.programID);
+    mapping.glLinkProgram(shader.programID);
 
-    glUseProgram(shader.programID);
+    mapping.glUseProgram(shader.programID);
 
-    GLint location;
+    GLint location = 0;
     if (name == "simple") {
       SetUniformInt("simple", "map_albedo", 0);
       SetUniformInt("simple", "map_normal", 1);
@@ -2022,9 +2022,9 @@ namespace blunted {
 
   void OpenGLRenderer3D::SetFramebufferGammaCorrection(bool onOff) {
     if (onOff) {
-      glEnable(GL_FRAMEBUFFER_SRGB);
+      mapping.glEnable(GL_FRAMEBUFFER_SRGB);
     } else {
-      glDisable(GL_FRAMEBUFFER_SRGB);
+      mapping.glDisable(GL_FRAMEBUFFER_SRGB);
     }
   }
 
@@ -2034,9 +2034,9 @@ namespace blunted {
 
       currentShader = shaderIter;
 
-      glUseProgram((*shaderIter).second.programID);
+      mapping.glUseProgram((*shaderIter).second.programID);
     } else {
-      glUseProgram(0);
+      mapping.glUseProgram(0);
     }
   }
 
@@ -2045,15 +2045,15 @@ namespace blunted {
     assert(shaderIter != shaders.end());
 
     std::map<std::string, GLint>::iterator iter = uniformCache.find(shaderName + "_var_" + varName);
-    GLint location;
+    GLint location = 0;
     if (iter != uniformCache.end()) {
       location = iter->second;
     } else {
-      location = glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
+      location = mapping.glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformInt", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    glUniform1i(location, value);
+    mapping.glUniform1i(location, value);
   }
 
   void OpenGLRenderer3D::SetUniformInt3(const std::string &shaderName, const std::string &varName, int value1, int value2, int value3) {
@@ -2061,15 +2061,15 @@ namespace blunted {
     assert(shaderIter != shaders.end());
 
     std::map<std::string, GLint>::iterator iter = uniformCache.find(shaderName + "_var_" + varName);
-    GLint location;
+    GLint location = 0;
     if (iter != uniformCache.end()) {
       location = iter->second;
     } else {
-      location = glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
+      location = mapping.glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformInt3", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    glUniform3i(location, value1, value2, value3);
+    mapping.glUniform3i(location, value1, value2, value3);
   }
 
   void OpenGLRenderer3D::SetUniformFloat(const std::string &shaderName, const std::string &varName, float value) {
@@ -2077,15 +2077,15 @@ namespace blunted {
     assert(shaderIter != shaders.end());
 
     std::map<std::string, GLint>::iterator iter = uniformCache.find(shaderName + "_var_" + varName);
-    GLint location;
+    GLint location = 0;
     if (iter != uniformCache.end()) {
       location = iter->second;
     } else {
-      location = glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
+      location = mapping.glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformFloat", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    glUniform1f(location, value);
+    mapping.glUniform1f(location, value);
   }
 
   void OpenGLRenderer3D::SetUniformFloat2(const std::string &shaderName, const std::string &varName, float value1, float value2) {
@@ -2093,15 +2093,15 @@ namespace blunted {
     assert(shaderIter != shaders.end());
 
     std::map<std::string, GLint>::iterator iter = uniformCache.find(shaderName + "_var_" + varName);
-    GLint location;
+    GLint location = 0;
     if (iter != uniformCache.end()) {
       location = iter->second;
     } else {
-      location = glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
+      location = mapping.glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformFloat2", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    glUniform2f(location, value1, value2);
+    mapping.glUniform2f(location, value1, value2);
   }
 
   void OpenGLRenderer3D::SetUniformFloat3(const std::string &shaderName, const std::string &varName, float value1, float value2, float value3) {
@@ -2109,15 +2109,15 @@ namespace blunted {
     assert(shaderIter != shaders.end());
 
     std::map<std::string, GLint>::iterator iter = uniformCache.find(shaderName + "_var_" + varName);
-    GLint location;
+    GLint location = 0;
     if (iter != uniformCache.end()) {
       location = iter->second;
     } else {
-      location = glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
+      location = mapping.glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformFloat3", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    glUniform3f(location, value1, value2, value3);
+    mapping.glUniform3f(location, value1, value2, value3);
   }
 
   void OpenGLRenderer3D::SetUniformFloat3Array(const std::string &shaderName, const std::string &varName, int count, float *values) {
@@ -2125,15 +2125,15 @@ namespace blunted {
     assert(shaderIter != shaders.end());
 
     std::map<std::string, GLint>::iterator iter = uniformCache.find(shaderName + "_var_" + varName);
-    GLint location;
+    GLint location = 0;
     if (iter != uniformCache.end()) {
       location = iter->second;
     } else {
-      location = glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
+      location = mapping.glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformFloat3Array", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    glUniform3fv(location, count, values);
+    mapping.glUniform3fv(location, count, values);
   }
 
   void OpenGLRenderer3D::SetUniformMatrix4(const std::string &shaderName, const std::string &varName, const Matrix4 &mat) {
@@ -2141,16 +2141,20 @@ namespace blunted {
     assert(shaderIter != shaders.end());
 
     std::map<std::string, GLint>::iterator iter = uniformCache.find(shaderName + "_var_" + varName);
-    GLint location;
+    GLint location = 0;
     if (iter != uniformCache.end()) {
       location = iter->second;
     } else {
-      location = glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
+      location = mapping.glGetUniformLocation((*shaderIter).second.programID, varName.c_str());
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformMatrix4", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    //glUniformMatrix4fv(location, 1, false, (float*)mat.GetTransposed().elements);
-    glUniformMatrix4fv(location, 1, true, (float*)mat.elements); // true == transposed
+    //mapping.glUniformMatrix4fv(location, 1, false, (float*)mat.GetTransposed().elements);
+    mapping.glUniformMatrix4fv(location, 1, true, (float*)mat.elements); // true == transposed
+  }
+
+  const screenshoot& OpenGLRenderer3D::GetScreen() {
+    return last_screen_;
   }
 
   void OpenGLRenderer3D::HDRCaptureOverallBrightness() {
@@ -2159,10 +2163,10 @@ namespace blunted {
     for (int i = 0; i < 2; i++) {
 //    for (int x = context_width * 0.2; x <= context_width * 0.8; x += context_width * 0.01) {
 //      for (int y = context_height * 0.2; y <= context_height * 0.8; y += context_height * 0.01) {
-      int x = random(context_width * 0.2f, context_width * 0.8f);
-      int y = random(context_height * 0.2f, context_height * 0.8f);
+      int x = random_non_determ(context_width * 0.2f, context_width * 0.8f);
+      int y = random_non_determ(context_height * 0.2f, context_height * 0.8f);
       GLubyte pixel[3];
-      glReadPixels(x, y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, (void*)pixel);
+      mapping.glReadPixels(x, y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, (void*)pixel);
       brightness += (pixel[0] + pixel[1] + pixel[2]) / 3.0f;
       count++;
     }
@@ -2179,78 +2183,15 @@ namespace blunted {
   }
 
 
+  constexpr char kHeadlessVideoDriverName[] = "headless";
+
   // thread main loop
 
   void OpenGLRenderer3D::operator()() {
-    Log(e_Notice, "OpenGLRenderer3D", "operator()()", "Starting OpenGLRenderer3D thread");
-
-    SDL_Init(SDL_INIT_VIDEO);
-
-    int flags = IMG_INIT_JPG | IMG_INIT_PNG;
-    int inited = IMG_Init(flags);
-
-    if ((inited & flags) != flags) {
-      printf("IMG_Init: Failed to init required jpg and png support!\n");
-      printf("IMG_Init: %s\n", IMG_GetError());
+    std::string rendering = GetConfiguration()->Get("graphics3d_renderer", "opengl");
+    if (rendering != "opengl") {
+      setenv("SDL_VIDEODRIVER", kHeadlessVideoDriverName, true);
     }
-
-    // we want the unicode stuff on keyboard keypresses (needs to be in ogl context or sdl doesn't get it)
-    SDL_EnableUNICODE(SDL_ENABLE);
-
-    SDL_Event event;
-
-    bool quit = false;
-    while (!quit) {
-
-      // process messages
-
-      while (SDL_PollEvent(&event)) {
-
-        // context losing/gaining focus
-        if (event.type == SDL_ACTIVEEVENT)
-          if (event.active.state & SDL_APPINPUTFOCUS) event.active.gain == 0 ? contextIsActive = false : contextIsActive = true;
-
-        switch (event.type) {
-          case SDL_QUIT: EnvironmentManager::GetInstance().SignalQuit(); break;
-          case SDL_KEYDOWN:
-            switch(event.key.keysym.sym) {
-              case SDLK_F12:
-                EnvironmentManager::GetInstance().SignalQuit();
-                break;
-              default:
-                break;
-            }
-            break;
-          default:
-            break;
-        }
-
-        if (contextIsActive) { // context must be active
-          UserEventManager::GetInstance().InputSDLEvent(event);
-        }
-
-      }
-
-      // todo: manual joy handling? see joy init in usereventmanager
-      // SDL_JoystickUpdate();
-
-      bool isMessage;
-      boost::intrusive_ptr<Command> message = messageQueue.WaitForMessage(isMessage, 1);
-      if (isMessage) {
-        if (!message->Handle(this)) quit = true;
-        message.reset();
-      }
-
-    }
-
-    Exit();
-
-    IMG_Quit();
-    SDL_QuitSubSystem(SDL_INIT_VIDEO);
-
-    Log(e_Notice, "OpenGLRenderer3D", "operator()()", "Shutting down OpenGLRenderer3D thread");
-
-    if (messageQueue.GetPending() > 0) Log(e_Error, "OpenGLRenderer3D", "operator()()", int_to_str(messageQueue.GetPending()) + " messages left on quit!");
   }
 
 }

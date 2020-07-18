@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,15 +18,15 @@
 #ifndef _HPP_MANAGERS_RESOURCE
 #define _HPP_MANAGERS_RESOURCE
 
-#include "defines.hpp"
+#include "../defines.hpp"
 
-#include "base/log.hpp"
-#include "base/utils.hpp"
+#include "../base/log.hpp"
+#include "../base/utils.hpp"
 
-#include "types/lockable.hpp"
-#include "types/loader.hpp"
+#include "../types/lockable.hpp"
+#include "../types/loader.hpp"
 
-#include "managers/environmentmanager.hpp"
+#include "../managers/environmentmanager.hpp"
 
 namespace blunted {
 
@@ -27,9 +40,9 @@ namespace blunted {
       ResourceManager(const std::string &typeDescription) : typeDescription(typeDescription) {};
 
       ~ResourceManager() {
-        resources.Lock();
-        resources.data.clear();
-        resources.Unlock();
+
+        resources.clear();
+
         loaders.clear();
       };
 
@@ -39,7 +52,7 @@ namespace blunted {
       }
 
       boost::intrusive_ptr < Resource<T> > Fetch(const std::string &filename, bool load = true, bool useExisting = true) {
-        bool foo;
+        bool foo = false;
         return Fetch(filename, load, foo, useExisting);
       }
 
@@ -88,30 +101,15 @@ namespace blunted {
         }
       }
 
-      boost::intrusive_ptr < Resource<T> > FetchCopy(const std::string &filename, const std::string &newName) {
-        boost::intrusive_ptr < Resource<T> > resource = Fetch(filename);
-
-        // todo: this lock is probably needed, but slows down everything very much.. find out why
-        resource->resourceMutex.lock();
-        boost::intrusive_ptr < Resource<T> > resourceCopy(new Resource<T>(*resource, newName));
-        resource->resourceMutex.unlock();
-
-        Register(resourceCopy);
-        return resourceCopy;
-      }
-
       boost::intrusive_ptr < Resource<T> > FetchCopy(const std::string &filename, const std::string &newName, bool &alreadyThere) {
         boost::intrusive_ptr < Resource<T> > resourceCopy;
-        if (resources.data.find(newName) != resources.data.end()) {
+        if (resources.find(newName) != resources.end()) {
           //Log(e_Warning, "ResourceManager", "FetchCopy", "Duplicate key '" + newName + "' - returning existing resource instead of copy (maybe just use Fetch() instead?)");
           resourceCopy = Fetch(newName, false, true);
         } else {
           boost::intrusive_ptr < Resource<T> > resource = Fetch(filename, true, alreadyThere, true);
 
-          // todo: this lock is probably needed, but slows down everything very much.. find out why
-          resource->resourceMutex.lock();
           resourceCopy = boost::intrusive_ptr < Resource<T> >(new Resource<T>(*resource, newName));
-          resource->resourceMutex.unlock();
 
           Register(resourceCopy);
         }
@@ -127,57 +125,64 @@ namespace blunted {
 
         // cleanup
 
-        resources.Lock();
 
-        typename std::map < std::string, boost::intrusive_ptr< Resource<T> > >::iterator resIter = resources.data.begin();
-        while (resIter != resources.data.end()) {
+
+        typename std::map < std::string, boost::intrusive_ptr< Resource<T> > >::iterator resIter = resources.begin();
+        while (resIter != resources.end()) {
           if (resIter->second->GetRefCount() == 1) {
             //printf("removing unused %s resource '%s'\n", typeDescription.c_str(), resIter->second->GetIdentString().c_str());
-            resources.data.erase(resIter++);
+            resources.erase(resIter++);
           } else {
             ++resIter;
           }
         }
 
-        resources.Unlock();
+
+      }
+
+      void Remove(const std::string &identString) {
+
+        auto iter = resources.find(identString);
+        if (iter != resources.end()) {
+          resources.erase(iter);
+        }
+
       }
 
     protected:
 
       boost::intrusive_ptr < Resource<T> > Find(const std::string &identString, bool &success) {
-        resources.Lock();
-        typename std::map < std::string, boost::intrusive_ptr< Resource<T> > >::iterator resIter = resources.data.find(identString);
-        if (resIter != resources.data.end()) {
+
+        typename std::map < std::string, boost::intrusive_ptr< Resource<T> > >::iterator resIter = resources.find(identString);
+        if (resIter != resources.end()) {
           success = true;
           boost::intrusive_ptr < Resource<T> > resource = (*resIter).second;
-          resources.Unlock();
+
           return resource;
         } else {
           success = false;
-          resources.Unlock();
+
           return boost::intrusive_ptr < Resource<T> >();
         }
       }
 
       void Register(boost::intrusive_ptr < Resource<T> > resource) {
 
-        resources.Lock();
+
 
         //printf("registering %s\n", resource->GetIdentString().c_str());
-        if (resources.data.find(resource->GetIdentString()) != resources.data.end()) {
-          resources.Unlock(); RemoveUnused(); resources.Lock();
-          if (resources.data.find(resource->GetIdentString()) != resources.data.end()) {
+        if (resources.find(resource->GetIdentString()) != resources.end()) {
+           Remove(resource->GetIdentString());
+          if (resources.find(resource->GetIdentString()) != resources.end()) {
             Log(e_FatalError, "ResourceManager", "Register", "Duplicate key '" + resource->GetIdentString() + "'");
           }
         }
-        resources.data.insert(std::make_pair(resource->GetIdentString(), resource));
-
-        resources.Unlock();
+        resources.insert(std::make_pair(resource->GetIdentString(), resource));
       }
 
       std::map < std::string, Loader<T>* > loaders;
 
-      Lockable < std::map < std::string, boost::intrusive_ptr < Resource <T> > > > resources;
+      std::map < std::string, boost::intrusive_ptr < Resource <T> > > resources;
 
       std::string typeDescription;
 

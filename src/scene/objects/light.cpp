@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -7,7 +20,7 @@
 #include "camera.hpp"
 #include "geometry.hpp"
 
-#include "systems/isystemobject.hpp"
+#include "../../systems/isystemobject.hpp"
 
 namespace blunted {
 
@@ -22,7 +35,6 @@ namespace blunted {
   }
 
   void Light::Exit() { // ATOMIC
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -32,42 +44,32 @@ namespace blunted {
 
     Object::Exit();
 
-    subjectMutex.unlock();
   }
 
   void Light::SetColor(const Vector3 &color) {
-    subjectMutex.lock();
     this->color = color;
-    subjectMutex.unlock();
     UpdateValues();
   }
 
   Vector3 Light::GetColor() const {
-    subjectMutex.lock();
     Vector3 retColor = color;
-    subjectMutex.unlock();
     return retColor;
 
   }
 
   void Light::SetRadius(float radius) {
-    subjectMutex.lock();
     this->radius = radius;
-    subjectMutex.unlock();
     UpdateValues();
 
     InvalidateBoundingVolume();
   }
 
   float Light::GetRadius() const {
-    subjectMutex.lock();
     float rad = radius;
-    subjectMutex.unlock();
     return rad;
   }
 
   void Light::SetType(e_LightType lightType) {
-    subjectMutex.lock();
 
     this->lightType = lightType;
 
@@ -77,18 +79,14 @@ namespace blunted {
       LightInterpreter->SetType(lightType);
     }
 
-    subjectMutex.unlock();
   }
 
   e_LightType Light::GetType() const {
-    subjectMutex.lock();
     e_LightType theType = lightType;
-    subjectMutex.unlock();
     return theType;
   }
 
   void Light::SetShadow(bool shadow) {
-    subjectMutex.lock();
 
     this->shadow = shadow;
 
@@ -98,18 +96,13 @@ namespace blunted {
       LightInterpreter->SetShadow(shadow);
     }
 
-    subjectMutex.unlock();
   }
 
   bool Light::GetShadow() const {
-    subjectMutex.lock();
-    bool tmp = shadow;
-    subjectMutex.unlock();
-    return tmp;
+    return shadow;
   }
 
   void Light::UpdateValues() {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -117,11 +110,9 @@ namespace blunted {
       LightInterpreter->SetValues(color, radius);
     }
 
-    subjectMutex.unlock();
   }
 
   void Light::EnqueueShadowMap(boost::intrusive_ptr<Camera> camera, std::deque < boost::intrusive_ptr<Geometry> > visibleGeometry) {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -129,11 +120,9 @@ namespace blunted {
       LightInterpreter->EnqueueShadowMap(camera, visibleGeometry);
     }
 
-    subjectMutex.unlock();
   }
 
   void Light::Poke(e_SystemType targetSystemType) {
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -141,14 +130,12 @@ namespace blunted {
       if (LightInterpreter->GetSystemType() == targetSystemType) LightInterpreter->OnPoke();
     }
 
-    subjectMutex.unlock();
   }
 
   void Light::RecursiveUpdateSpatialData(e_SpatialDataType spatialDataType, e_SystemType excludeSystem) {
     InvalidateSpatialData();
     InvalidateBoundingVolume();
 
-    subjectMutex.lock();
 
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
@@ -158,20 +145,19 @@ namespace blunted {
       }
     }
 
-    subjectMutex.unlock();
   }
 
   AABB Light::GetAABB() const {
-    aabb.Lock();
-    if (aabb.data.dirty == true) {
+    //aabb.Lock();
+    if (aabb.dirty == true) {
       Vector3 pos = GetDerivedPosition();
-      aabb.data.aabb.minxyz = pos - radius;
-      aabb.data.aabb.maxxyz = pos + radius;
-      aabb.data.aabb.MakeDirty();
-      aabb.data.dirty = false;
+      aabb.aabb.minxyz = pos - radius;
+      aabb.aabb.maxxyz = pos + radius;
+      aabb.aabb.MakeDirty();
+      aabb.dirty = false;
     }
-    AABB tmp = aabb.data.aabb;
-    aabb.Unlock();
+    AABB tmp = aabb.aabb;
+    //aabb.Unlock();
     return tmp;
   }
 

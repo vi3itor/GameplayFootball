@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -11,8 +24,8 @@ namespace blunted {
     Vector axis(0, 0, -1);
     rotation.SetAngleAxis(0, axis);
     position.Set(0, 0, 0);
-    aabb.data.aabb.Reset();
-    aabb.data.dirty = false;
+    aabb.aabb.Reset();
+    aabb.dirty = false;
     InvalidateSpatialData();
   }
 
@@ -26,8 +39,8 @@ namespace blunted {
     rotation = src.rotation;
     scale = src.scale;
     localMode = src.localMode;
-    aabb.data.aabb = src.GetAABB();
-    aabb.data.dirty = false;
+    aabb.aabb = src.GetAABB();
+    aabb.dirty = false;
     parent = 0;
     InvalidateSpatialData();
   }
@@ -37,18 +50,14 @@ namespace blunted {
     InvalidateBoundingVolume();
   }
 
-  bool Spatial::GetLocalMode() {
-    return localMode;
-  }
-
   void Spatial::SetName(const std::string &name) {
-    spatialMutex.lock();
+    //spatialMutex.lock();
     this->name = name;
-    spatialMutex.unlock();
+    //spatialMutex.unlock();
   }
 
   const std::string Spatial::GetName() const {
-    boost::mutex::scoped_lock blah(spatialMutex);
+    //boost::mutex::scoped_lock blah(spatialMutex);
     return name.c_str();
   }
 
@@ -57,54 +66,50 @@ namespace blunted {
     InvalidateBoundingVolume();
   }
 
-  Spatial *Spatial::GetParent() const {
-    return parent;
-  }
-
   void Spatial::SetPosition(const Vector3 &newPosition, bool updateSpatialData) {
-    spatialMutex.lock();
+    //spatialMutex.lock();
     position = newPosition;
-    spatialMutex.unlock();
+    //spatialMutex.unlock();
     if (updateSpatialData) RecursiveUpdateSpatialData(e_SpatialDataType_Position);
   }
 
   Vector3 Spatial::GetPosition() const {
-    spatialMutex.lock();
+    //spatialMutex.lock();
     Vector3 pos = position;
-    spatialMutex.unlock();
+    //spatialMutex.unlock();
     return pos;
   }
 
   void Spatial::SetRotation(const Quaternion &newRotation, bool updateSpatialData) {
-    spatialMutex.lock();
+    //spatialMutex.lock();
     rotation = newRotation;
-    spatialMutex.unlock();
+    //spatialMutex.unlock();
     if (updateSpatialData) RecursiveUpdateSpatialData(e_SpatialDataType_Both);
   }
 
   Quaternion Spatial::GetRotation() const {
-    spatialMutex.lock();
+    //spatialMutex.lock();
     Quaternion rot = rotation;
-    spatialMutex.unlock();
+    //spatialMutex.unlock();
     return rot;
   }
 
   void Spatial::SetScale(const Vector3 &newScale) {
-    spatialMutex.lock();
+    //spatialMutex.lock();
     this->scale = newScale;
-    spatialMutex.unlock();
+    //spatialMutex.unlock();
     RecursiveUpdateSpatialData(e_SpatialDataType_Rotation);
   }
 
   Vector3 Spatial::GetScale() const {
-    spatialMutex.lock();
+    //spatialMutex.lock();
     Vector3 retScale = scale;
-    spatialMutex.unlock();
+    //spatialMutex.unlock();
     return retScale;
   }
 
   Vector3 Spatial::GetDerivedPosition() const {
-    boost::mutex::scoped_lock cachelock(cacheMutex);
+    //boost::mutex::scoped_lock cachelock(cacheMutex);
     if (_dirty_DerivedPosition) {
       if (localMode == e_LocalMode_Relative) {
         if (parent) {
@@ -126,7 +131,7 @@ namespace blunted {
   }
 
   Quaternion Spatial::GetDerivedRotation() const {
-    boost::mutex::scoped_lock cachelock(cacheMutex);
+    //boost::mutex::scoped_lock cachelock(cacheMutex);
     if (_dirty_DerivedRotation) {
       if (localMode == e_LocalMode_Relative) {
         if (parent) {
@@ -143,7 +148,7 @@ namespace blunted {
   }
 
   Vector3 Spatial::GetDerivedScale() const {
-    boost::mutex::scoped_lock cachelock(cacheMutex);
+    //boost::mutex::scoped_lock cachelock(cacheMutex);
     if (_dirty_DerivedScale) {
       if (localMode == e_LocalMode_Relative) {
         if (parent) {
@@ -161,31 +166,31 @@ namespace blunted {
 
   void Spatial::InvalidateBoundingVolume() {
     bool changed = false;
-    aabb.Lock();
-    if (aabb.data.dirty == false) {
-      aabb.data.dirty = true;
-      aabb.data.aabb.Reset();
+    //aabb.Lock();
+    if (aabb.dirty == false) {
+      aabb.dirty = true;
+      aabb.aabb.Reset();
       changed = true;
     }
-    aabb.Unlock();
+    //aabb.Unlock();
 
     if (changed) if (parent) parent->InvalidateBoundingVolume();
   }
 
   void Spatial::InvalidateSpatialData() {
-    cacheMutex.lock();
+    //cacheMutex.lock();
     _dirty_DerivedPosition = true;
     _dirty_DerivedRotation = true;
     _dirty_DerivedScale = true;
-    cacheMutex.unlock();
+    //cacheMutex.unlock();
   }
 
 
   AABB Spatial::GetAABB() const {
     AABB tmp;
-    aabb.Lock();
-    tmp = aabb.data.aabb;
-    aabb.Unlock();
+    //aabb.Lock();
+    tmp = aabb.aabb;
+    //aabb.Unlock();
     return tmp;
   }
 

@@ -1,13 +1,28 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "windowmanager.hpp"
 
+#include <cmath>
+
 #include "widgets/root.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
-#include "scene/objectfactory.hpp"
+#include "../../managers/resourcemanagerpool.hpp"
+#include "../../scene/objectfactory.hpp"
 
 namespace blunted {
 
@@ -44,7 +59,7 @@ namespace blunted {
     scene2D->GetContextSize(contextW, contextH, bpp);
     SDL_Surface *sdlSurface = CreateSDLSurface(contextW, contextH);
 
-    boost::intrusive_ptr < Resource <Surface> > resource = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch("gui2_blackoutbackground", false, true);
+    boost::intrusive_ptr < Resource <Surface> > resource = ResourceManagerPool::getSurfaceManager()->Fetch("gui2_blackoutbackground", false, true);
     Surface *surface = resource->GetResource();
 
     surface->SetData(sdlSurface);
@@ -136,26 +151,14 @@ namespace blunted {
       startY = margin + (contextH - effectiveH) * 0.5f;
     }
 
-    width = int(round(effectiveW * width_percent * 0.01f));
-    height = int(round(effectiveH * height_percent * 0.01f));
+    width = int(std::round(effectiveW * width_percent * 0.01f));
+    height = int(std::round(effectiveH * height_percent * 0.01f));
 
-    x = startX + int(round(effectiveW * x_percent * 0.01f));
-    y = startY + int(round(effectiveH * y_percent * 0.01f));
+    x = startX + int(std::round(effectiveW * x_percent * 0.01f));
+    y = startY + int(std::round(effectiveH * y_percent * 0.01f));
 
     if (width < 1) width = 1;
     if (height < 1) height = 1;
-  }
-
-  int Gui2WindowManager::GetWidthPixels(float percentage) {
-    int width = int(round(effectiveW * percentage * 0.01f));
-    if (width < 1) width = 1;
-    return width;
-  }
-
-  int Gui2WindowManager::GetHeightPixels(float percentage) {
-    int height = int(round(effectiveH * percentage * 0.01f));
-    if (height < 1) height = 1;
-    return height;
   }
 
   float Gui2WindowManager::GetWidthPercent(int pixels) {
@@ -170,7 +173,7 @@ namespace blunted {
 
     SDL_Surface *sdlSurface = CreateSDLSurface(width, height);
 
-    boost::intrusive_ptr < Resource <Surface> > resource = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(name, false, true);
+    boost::intrusive_ptr < Resource <Surface> > resource = ResourceManagerPool::getSurfaceManager()->Fetch(name, false, true);
     Surface *surface = resource->GetResource();
 
     surface->SetData(sdlSurface);

@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -7,7 +20,7 @@
 
 #include "interface_renderer3d.hpp"
 
-#include "managers/environmentmanager.hpp"
+#include "../../../managers/environmentmanager.hpp"
 
 namespace blunted {
 
@@ -18,9 +31,9 @@ namespace blunted {
     std::deque<VertexBufferQueueEntry> skyboxes;
 
     Matrix4 cameraMatrix;
-    float cameraFOV;
-    float cameraNearCap;
-    float cameraFarCap;
+    float cameraFOV = 0.0f;
+    float cameraNearCap = 0.0f;
+    float cameraFarCap = 0.0f;
   };
 
 
@@ -32,7 +45,7 @@ namespace blunted {
       Renderer3DMessage_CreateContext(int width, int height, int bpp, bool fullscreen) : Command("r3dmsg_CreateContext"), width(width), height(height), bpp(bpp), fullscreen(fullscreen) {};
 
       // return values
-      bool success;
+      bool success = false;
 
     protected:
       virtual bool Execute(void *caller = NULL) {
@@ -42,7 +55,7 @@ namespace blunted {
 
       // parameters
       int width, height, bpp;
-      bool fullscreen;
+      bool fullscreen = false;
 
   };
 
@@ -60,33 +73,7 @@ namespace blunted {
         return true;
       }
 
-      unsigned long readyTime_ms;
-
-  };
-
-  class Renderer3DMessage_CreateTexture : public Command {
-
-    public:
-      Renderer3DMessage_CreateTexture(e_InternalPixelFormat internalPixelFormat, e_PixelFormat pixelFormat, int width, int height, bool alpha = false, bool repeat = true, bool mipmaps = true, bool filter = true, bool compareDepth = false) : Command("r3dmsg_CreateTexture"), internalPixelFormat(internalPixelFormat), pixelFormat(pixelFormat), width(width), height(height), alpha(alpha), repeat(repeat), mipmaps(mipmaps), filter(filter), compareDepth(compareDepth) {};
-
-      int textureID;
-
-    protected:
-      virtual bool Execute(void *caller = NULL) {
-        textureID = static_cast<Renderer3D*>(caller)->CreateTexture(internalPixelFormat, pixelFormat, width, height, alpha, repeat, mipmaps, filter, false, compareDepth); // false == multisample
-
-        return true;
-      }
-
-      e_InternalPixelFormat internalPixelFormat;
-      e_PixelFormat pixelFormat;
-      int width;
-      int height;
-      bool alpha;
-      bool repeat;
-      bool mipmaps;
-      bool filter;
-      bool compareDepth;
+      unsigned long readyTime_ms = 0;
 
   };
 
@@ -102,7 +89,7 @@ namespace blunted {
         return true;
       }
 
-      int textureID;
+      int textureID = 0;
 
   };
 
@@ -127,7 +114,7 @@ namespace blunted {
         return true;
       }
 
-      int textureID;
+      int textureID = 0;
       SDL_Surface *source;
       e_InternalPixelFormat internalPixelFormat;
       e_PixelFormat pixelFormat;
@@ -156,30 +143,9 @@ namespace blunted {
         return true;
       }
 
-      int textureID;
+      int textureID = 0;
       SDL_Surface *source;
       bool alpha, mipmaps;
-
-  };
-
-  class Renderer3DMessage_CreateVertexBuffer : public Command {
-
-    public:
-      Renderer3DMessage_CreateVertexBuffer(float *vertices, unsigned int verticesDataSize, std::vector<unsigned int> indices, e_VertexBufferUsage usage) : Command("r3dmsg_CreateVertexBuffer"), vertices(vertices), verticesDataSize(verticesDataSize), indices(indices), usage(usage) {};
-
-      VertexBufferID vertexBufferID;
-
-    protected:
-      virtual bool Execute(void *caller = NULL) {
-        vertexBufferID = static_cast<Renderer3D*>(caller)->CreateVertexBuffer(vertices, verticesDataSize, indices, usage);
-
-        return true;
-      }
-
-      float *vertices;
-      unsigned int verticesDataSize;
-      std::vector<unsigned int> indices;
-      e_VertexBufferUsage usage;
 
   };
 
@@ -203,7 +169,7 @@ namespace blunted {
       VertexBufferID vertexBufferID;
 
       float *vertices;
-      int verticesDataSize;
+      int verticesDataSize = 0;
 
   };
 
@@ -245,47 +211,12 @@ namespace blunted {
 
   };
 
-  // todo: it's a bit lame that we have to wait for the OpenGL thread on the context size, even though we could cache this
-  class Renderer3DMessage_GetContextSize : public Command {
-
-    public:
-      Renderer3DMessage_GetContextSize() : Command("r3dmsg_GetContextSize") {};
-
-    protected:
-      virtual bool Execute(void *caller = NULL) {
-        static_cast<Renderer3D*>(caller)->GetContextSize(width, height, bpp);
-
-        return true;
-      }
-
-      int width;
-      int height;
-      int bpp;
-
-  };
-
-  class Renderer3DMessage_SetFOV : public Command {
-
-    public:
-      Renderer3DMessage_SetFOV(float angle) : Command("r3dmsg_SetFOV"), angle(angle) {};
-
-    protected:
-      virtual bool Execute(void *caller = NULL) {
-        static_cast<Renderer3D*>(caller)->SetFOV(angle);
-
-        return true;
-      }
-
-      float angle;
-
-  };
-
   class Renderer3DMessage_CreateView : public Command {
 
     public:
       Renderer3DMessage_CreateView(float x_percent, float y_percent, float width_percent, float height_percent) : Command("r3dmsg_CreateView"), x_percent(x_percent), y_percent(y_percent), width_percent(width_percent), height_percent(height_percent) {};
 
-      int viewID;
+      int viewID = 0;
 
     protected:
       virtual bool Execute(void *caller = NULL) {
@@ -294,10 +225,10 @@ namespace blunted {
         return true;
       }
 
-      float x_percent;
-      float y_percent;
-      float width_percent;
-      float height_percent;
+      float x_percent = 0.0f;
+      float y_percent = 0.0f;
+      float width_percent = 0.0f;
+      float height_percent = 0.0f;
 
   };
 
@@ -312,7 +243,7 @@ namespace blunted {
     protected:
       virtual bool Execute(void *caller = NULL);
 
-      int viewID;
+      int viewID = 0;
       ViewBuffer &buffer;
 
   };
@@ -329,7 +260,7 @@ namespace blunted {
         return true;
       }
 
-      int viewID;
+      int viewID = 0;
 
   };
 
@@ -359,7 +290,7 @@ namespace blunted {
                                           target4(target4), texID4(texID4),
                                           target5(target5), texID5(texID5) {};
 
-      int frameBufferID;
+      int frameBufferID = 0;
 
     protected:
       virtual bool Execute(void *caller = NULL);
@@ -395,7 +326,7 @@ namespace blunted {
     protected:
       virtual bool Execute(void *caller = NULL);
 
-      int frameBufferID;
+      int frameBufferID = 0;
       e_TargetAttachment target1, target2, target3, target4, target5;
 
   };

@@ -1,15 +1,28 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "scene2d.hpp"
 
-// todo
-#include "scene/objects/image2d.hpp"
-#include "scene/objects/geometry.hpp"
 
-#include "systems/isystemscene.hpp"
+#include "../../scene/objects/image2d.hpp"
+#include "../../scene/objects/geometry.hpp"
 
-#include "managers/environmentmanager.hpp"
-#include "managers/systemmanager.hpp"
+#include "../../systems/isystemscene.hpp"
 
-#include "scene/objectfactory.hpp"
+#include "../../managers/environmentmanager.hpp"
+#include "../../managers/systemmanager.hpp"
+
+#include "../../scene/objectfactory.hpp"
 
 namespace blunted {
 
@@ -40,8 +53,6 @@ namespace blunted {
     objects.data.clear();
     objects.Unlock();
 
-    subjectMutex.lock();
-
     int observersSize = observers.size();
     for (int i = 0; i < observersSize; i++) {
       IScene2DInterpreter *scene2DInterpreter = static_cast<IScene2DInterpreter*>(observers.at(i).get());
@@ -49,8 +60,6 @@ namespace blunted {
     }
 
     Scene::Exit();
-
-    subjectMutex.unlock();
   }
 
   void Scene2D::AddObject(boost::intrusive_ptr<Object> object) {
@@ -76,29 +85,6 @@ namespace blunted {
     objects.Unlock();
   }
 
-  void Scene2D::RemoveObject(boost::intrusive_ptr<Object> object) {
-    objects.Lock();
-    std::vector <boost::intrusive_ptr<Object> >::iterator objIter = objects.data.begin();
-    while (objIter != objects.data.end()) {
-      if ((*objIter) == object) {
-        objIter = objects.data.erase(objIter);
-      } else {
-        objIter++;
-      }
-    }
-    objects.Unlock();
-  }
-
-  void Scene2D::GetObjects(e_ObjectType targetObjectType, std::vector < boost::intrusive_ptr<Object> > &gatherObjects) {
-    if (!SupportedObjectType(targetObjectType)) return;
-    objects.Lock();
-    int objectsSize = objects.data.size();
-    for (int i = 0; i < objectsSize; i++) {
-      if (objects.data.at(i)->GetObjectType() == targetObjectType) gatherObjects.push_back(objects.data.at(i));
-    }
-    objects.Unlock();
-  }
-
   bool SortObjects(const boost::intrusive_ptr<Object> &a, const boost::intrusive_ptr<Object> &b) {
     return a->GetPokePriority() < b->GetPokePriority();
   }
@@ -119,13 +105,4 @@ namespace blunted {
     height = this->height;
     bpp = this->bpp;
   }
-
-  Vector3 Scene2D::GetContextSize() {
-    Vector3 size;
-    size.coords[0] = width;
-    size.coords[1] = height;
-    size.coords[2] = bpp;
-    return size;
-  }
-
 }

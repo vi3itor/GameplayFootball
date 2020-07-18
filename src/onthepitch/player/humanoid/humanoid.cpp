@@ -1,8 +1,23 @@
-﻿// written by bastiaan konings schuiling 2008 - 2015
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "humanoid.hpp"
+
+#include <cmath>
 
 #include "humanoid_utils.hpp"
 
@@ -14,15 +29,13 @@
 
 #include "../../AIsupport/AIfunctions.hpp"
 
-#include "utils/animationextensions/footballanimationextension.hpp"
+#include "../../../utils/animationextensions/footballanimationextension.hpp"
 
-#include "systems/graphics/objects/graphics_geometry.hpp"
-#include "systems/graphics/graphics_scene.hpp"
-#include "systems/graphics/graphics_system.hpp"
+#include "../../../systems/graphics/objects/graphics_geometry.hpp"
+#include "../../../systems/graphics/graphics_scene.hpp"
+#include "../../../systems/graphics/graphics_system.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
-
-#include "libs/fastapprox.h"
+#include "../../../managers/resourcemanagerpool.hpp"
 
 const bool spatialDebugPilons = false;
 const bool movementSmuggleDebugPilons = false;
@@ -89,11 +102,6 @@ void Humanoid::Process() {
 
   if (CastPlayer()->GetDebug() && spatialDebugPilons) SetGreenDebugPilon(spatialState.position + spatialState.directionVec * 0.5f + spatialState.movement * 0.5f);
 
-  if (CastPlayer()->GetDebug() && match->GetActualTime_ms() % 250 == 0) {
-    printf("velo: %f (max: %f)\n", spatialState.movement.GetLength(), player->GetMaxVelocity()); // todo: second frame seems to be half speed? (update: not sure if stil the case)
-    //printf("angle: %f, rel body angle: %f, anim outgoing angle: %f, anim rel outgoing body angle: %f\n", spatialState.angle, spatialState.relBodyAngle, currentAnim->anim->GetOutgoingAngle(), currentAnim->anim->GetOutgoingBodyAngle());
-  }
-
   assert(match);
 
   if (!currentMentalImage) {
@@ -114,7 +122,7 @@ void Humanoid::Process() {
   int teamID = team->GetID();
 
 /*
-  // todo: work in progress. still need to change 'desired' direction based on bump
+
   if (currentAnim->positionOffset.GetLength() > 0.1f && interruptAnim == e_InterruptAnim_None) {
     interruptAnim = e_InterruptAnim_Bump;
   }
@@ -199,9 +207,6 @@ void Humanoid::Process() {
   }
 
   if (interruptAnim != e_InterruptAnim_None) {
-
-    //if (CastPlayer()->GetDebug()) SetGreenDebugPilon(GetPosition() + GetMovement());
-
     PlayerCommandQueue commandQueue;
 
     if (interruptAnim == e_InterruptAnim_Trip && tripType != 0) {
@@ -227,8 +232,6 @@ void Humanoid::Process() {
           command.desiredFunctionType == e_FunctionType_Shot) {
         preferPassAndShot = true;
       }
-      //if (CastPlayer()->GetTeam()->GetAllPlayers().at(0) == player && CastPlayer()->GetTeam()->GetID() == 1) printf("queue at %i has type %i\n", i, command.desiredFunctionType);
-
       found = SelectAnim(command, interruptAnim, preferPassAndShot);
       if (found) break;
     }
@@ -245,12 +248,8 @@ void Humanoid::Process() {
       Log(e_Warning, "Humanoid", "Process", "current body angle: abs: " + real_to_str(spatialState.bodyAngle) + ", rel: " + real_to_str(spatialState.relBodyAngle));
       Log(e_Warning, "Humanoid", "Process", "current position: " + real_to_str(spatialState.position.coords[0]) + ", " + real_to_str(spatialState.position.coords[1]) + ", " + real_to_str(spatialState.position.coords[2]));
       Log(e_Warning, "Humanoid", "Process", "special state: " + currentAnim->anim->GetVariable("outgoing_special_state"));
-
-      if (!IsReleaseVersion()) {
-        exit(1);
-      } else {
-        ResetPosition(spatialState.position, match->GetBall()->Predict(0).Get2D()); // NOT supposed to happen!
-      }
+      print_stacktrace();
+      exit(1);
     }
 
     if (found) {
@@ -338,7 +337,7 @@ void Humanoid::Process() {
 
       ||
 
-      (lastTouchBias <= 0.7f && CastPlayer()->HasPossession() && currentAnim->functionType == e_FunctionType_Trip && ballDistanceNow < 0.4f) // todo: only when triptype is 1 ?
+      (lastTouchBias <= 0.7f && CastPlayer()->HasPossession() && currentAnim->functionType == e_FunctionType_Trip && ballDistanceNow < 0.4f)
 
     ) && match->GetBall()->Predict(0).coords[2] < 1.6f) {
 
@@ -367,8 +366,6 @@ void Humanoid::Process() {
 
     match->GetBall()->Touch(touchVec);
     match->GetBall()->SetRotation(xRot, yRot, 0, 0.2f * (1.0f - bumpyRideBias)); // 0.9
-    match->GetBall()->TriggerBallTouchSound(pow(NormalizedClamp(touchVec.GetLength(), 4.0f, 40.0f), 0.7f));
-
     team->SetLastTouchPlayer(CastPlayer(), GetTouchTypeForBodyPart(currentAnim->anim->GetVariable("touch_bodypart")));//, e_TouchType_Accidental);
     CastPlayer()->UpdatePossessionStats(false);
   }
@@ -519,8 +516,6 @@ void Humanoid::Process() {
         if (player->GetDebug() && bumpyRideBias > 0.01f) printf("bumpyridebias (pass): %f\n", bumpyRideBias);
 
         match->GetBall()->Touch(touchVec);
-        match->GetBall()->TriggerBallTouchSound(pow(NormalizedClamp(touchVec.GetLength(), 4.0f, 40.0f), 0.7f));
-
         float forwardness = 3.5f;
         if (currentAnim->functionType == e_FunctionType_HighPass) forwardness = -1.3f;
         radian xRot = touchVec.GetNormalized(0).coords[1] * (clamp(touchVec.GetLength(), 0.0, 15.0) * forwardness);
@@ -558,12 +553,14 @@ void Humanoid::Process() {
         Vector3 touchVec = GetShotVector(match, CastPlayer(), nextStartPos, nextStartAngle, nextBodyAngle, CalculateOutgoingMovement(currentAnim->positions), currentAnim, currentAnim->frameNum, spatialState, decayingPositionOffset, xRot, yRot, zRot, currentAnim->originatingCommand.touchInfo.autoDirectionBias);
 
         touchVec = touchVec * (1.0f - bumpyRideBias) + currentBallVec * bumpyRideBias;
+        // Limit Z-coordinate of the ball's speed, so that it is not likely
+        // to shot over the goal keeper. Value of '5' was selected empirically
+        // by analyzing observations making sure the ball doesn't fly too high.
+        touchVec.coords[2] = std::min(5.0f, touchVec.coords[2]);
         if (player->GetDebug() && bumpyRideBias > 0.01f) printf("bumpyridebias (shot): %f\n", bumpyRideBias);
 
         match->GetBall()->Touch(touchVec);
         match->GetBall()->SetRotation(xRot, yRot, zRot, 0.7f * (1.0f - bumpyRideBias));
-        match->GetBall()->TriggerBallTouchSound(pow(NormalizedClamp(touchVec.GetLength(), 4.0f, 40.0f), 0.7f));
-
         team->SetLastTouchPlayer(CastPlayer(), GetTouchTypeForBodyPart(currentAnim->anim->GetVariable("touch_bodypart")));
         match->GetMatchData()->AddShot(team->GetID());
       }
@@ -591,7 +588,10 @@ void Humanoid::Process() {
         float reactionDifficulty = 0.0f;
         Player *lastTouchPlayer = match->GetTeam(abs(team->GetID() - 1))->GetLastTouchPlayer();
         if (lastTouchPlayer) {
-          reactionDifficulty = pow(lastTouchPlayer->GetLastTouchBias(1200 - player->GetStat("physical_reaction") * 400), 0.6f);
+          reactionDifficulty =
+              std::pow(lastTouchPlayer->GetLastTouchBias(
+                           1200 - player->GetStat("physical_reaction") * 400),
+                       0.6f);
         }
         if ((1.0f - veloDifficulty) * (1.0f - reactionDifficulty) < 0.3f) canRetain = false; // too hard!
         if (Verbose()) printf("deflect: velodiff: %f, reactiondiff: %f, total diff inv: %f\n", veloDifficulty, reactionDifficulty, (1.0f - veloDifficulty) * (1.0f - reactionDifficulty));
@@ -663,7 +663,11 @@ void Humanoid::Process() {
 
     // smooth version
     assert(currentAnim->touchFrame > 0.0f);
-    float value = cos((currentAnim->frameNum / (float)(currentAnim->touchFrame + 1) - 0.5f) * pi * 2.0f) + 1.0f;
+    float value =
+        std::cos((currentAnim->frameNum / (float)(currentAnim->touchFrame + 1) -
+                  0.5f) *
+                 pi * 2.0f) +
+        1.0f;
     //if (player->GetDebug()) printf("cos: %f\n", value);
     // add some linearity
     value = value * 0.1f + 0.9f;
@@ -683,7 +687,12 @@ void Humanoid::Process() {
     // currentAnim->movementSmuggleOffset += spatialState.movementSmuggleMovement;
 
     // smooth version
-    float value = cos((currentAnim->frameNum / (float)(currentAnim->anim->GetEffectiveFrameCount() + 1) - 0.5f) * pi * 2.0f) + 1.0f;
+    float value =
+        std::cos((currentAnim->frameNum /
+                      (float)(currentAnim->anim->GetEffectiveFrameCount() + 1) -
+                  0.5f) *
+                 pi * 2.0f) +
+        1.0f;
     //if (player->GetDebug()) printf("cos: %f\n", value);
     // add some linearity
     value = value * 0.1f + 0.9f;
@@ -831,7 +840,7 @@ void Humanoid::CalculateGeomOffsets() {
 
         radian angle = toBall.GetAngle2D(spatialState.relBodyDirectionVecNonquantized.GetRotated2D(spatialState.angle));//FixAngle(toBall.GetAngle2D() - spatialState.bodyAngle);
         angle = clamp(fabs(angle) - 0.05f * pi, 0.0f, pi) * signSide(angle); // less influence
-        float lookAtBallBias = pow(1.0f - fabs(angle / pi), 0.3f);
+        float lookAtBallBias = std::pow(1.0f - fabs(angle / pi), 0.3f);
         lookAtBallBias = clamp(lookAtBallBias * adaptBodyToBallPosition_influence, 0.0f, 1.0f);
         float ballDistance = match->GetBall()->Predict(100).Get2D().GetDistance(spatialState.position);
         float ballProximityFalloff = 1.6f;
@@ -839,12 +848,17 @@ void Humanoid::CalculateGeomOffsets() {
           lookAtBallBias *= NormalizedClamp(ballDistance, ballProximityFalloff * 0.4f, ballProximityFalloff);
         }
         //if (player->GetDebug()) SetYellowDebugPilon(spatialState.position + Vector3(0, -1, 0).GetRotated2D(spatialState.angle + spatialState.relBodyAngleNonquantized) * 5.0f);
-        lookAtBallBias *= 1.0f - pow(NormalizedClamp(spatialState.floatVelocity, idleVelocity, sprintVelocity - 0.5f), 2.0f) * 0.3f; // less effect on high velo
+        lookAtBallBias *=
+            1.0f -
+            std::pow(NormalizedClamp(spatialState.floatVelocity, idleVelocity,
+                                     sprintVelocity - 0.5f),
+                     2.0f) *
+                0.3f;  // less effect on high velo
 
         //Quaternion middleOrientation; middleOrientation.SetAngleAxis(FixAngle(toBall.GetAngle2D()), Vector3(0, 0, 1));
         Quaternion middleOrientation; middleOrientation.SetAngleAxis(angle, Vector3(0, 0, 1));
 
-/*        // look up (does not work since the changes in amount of (main) effect fuck this up)
+/*        // look up (does not work since the changes in amount of (main) effect breaks it)
         float heightFactor = clamp(toBall3D.coords[2] * 1.1f - 0.1f, 0.0f, 1.0f);
         Quaternion rotX; rotX.SetAngleAxis(heightFactor * 3.5f * pi, Vector3(1, 0, 0));
         middleOrientation = middleOrientation * rotX;
@@ -997,7 +1011,7 @@ void Humanoid::CalculateGeomOffsets() {
           // if ball is further away, stretch more. if close, bend knee and such
           radian bendAngle = (1.0f - NormalizedClamp(autoTouchOffsetRel.GetLength(), 0.5f, 1.0f)) * 0.34f * pi;
 
-          float insideFactor = 0.4f; // todo: make var in anim? or autodetect, maybe?
+          float insideFactor = 0.4f;
           Quaternion hipTwist; hipTwist.SetAngleAxis(0.5f * pi, Vector3(0, 0, -leftOrRightLeg * insideFactor));
           Quaternion defaultHipOrientation; defaultHipOrientation.SetAngleAxis(-0.03f * pi - bendAngle, Vector3(1, 0, 0)); defaultHipOrientation = hipTwist * defaultHipOrientation;
           Quaternion defaultKneeOrientation; defaultKneeOrientation.SetAngleAxis(0.1f * pi + bendAngle * 2.2f, Vector3(1, 0, 0));
@@ -1031,7 +1045,7 @@ void Humanoid::CalculateGeomOffsets() {
           defaultHipOrientation = bodyOrientationRel.GetInverse() * defaultHipOrientation;
           defaultHipOrientation.Normalize();
 
-          // todo: if too far out of range, don't use (for 180 degree bugs and such)
+
 
 
           if (leftOrRightLeg == -1) {
@@ -1108,22 +1122,6 @@ void Humanoid::SelectRetainAnim() {
 void Humanoid::ResetSituation(const Vector3 &focusPos) {
   HumanoidBase::ResetSituation(focusPos);
   //printf("humanoid reset\n");
-}
-
-float Humanoid::GetHasteFactor(bool considerOpponentProximity) const {
-  float haste = 0.0f;
-
-  float playerMovementInfluence = 0.5f; // because a player is quite moveable, take it less seriously
-  float playerBallDistanceNow = (currentMentalImage->GetBallPrediction(50).Get2D() - (spatialState.position + spatialState.movement * 0.05f * playerMovementInfluence)).GetLength();
-  float playerBallDistanceFuture = (currentMentalImage->GetBallPrediction(500).Get2D() - (spatialState.position + spatialState.movement * 0.5f * playerMovementInfluence)).GetLength();
-
-  haste = NormalizedClamp((playerBallDistanceFuture - playerBallDistanceNow), 0.0f, 1.0f);
-
-  if (haste <= 1.0 && considerOpponentProximity) {
-    if (team->GetTeamPossessionAmount() < 2.0f) haste += 1.0f - team->GetTeamPossessionAmount() * 0.5f;
-  }
-
-  return clamp(haste, 0.0f, 1.0f);
 }
 
 bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInterruptAnim, bool preferPassAndShot) { // returns false on no applicable anim found
@@ -1220,7 +1218,7 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
   query.foot = spatialState.foot == e_Foot_Left ? e_Foot_Right : e_Foot_Left;
 
   // query.heedForcedFoot = true;
-  // query.strongFoot = e_Foot_Right; // todo: take from player data
+  // query.strongFoot = e_Foot_Right;
 
   // hax: long pass uses same anims as short pass
   if (query.functionType == e_FunctionType_LongPass) query.functionType = e_FunctionType_ShortPass;
@@ -1289,7 +1287,7 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
       command.desiredFunctionType == e_FunctionType_Interfere ||
       command.desiredFunctionType == e_FunctionType_Deflect) {
     query.byIncomingBallDirection = true;
-    query.incomingBallDirection = (currentMentalImage->GetBallPrediction(180) - currentMentalImage->GetBallPrediction(120)).GetRotated2D(-spatialState.angle).GetNormalized(Vector3(0)); // todo: proper prediction time
+    query.incomingBallDirection = (currentMentalImage->GetBallPrediction(180) - currentMentalImage->GetBallPrediction(120)).GetRotated2D(-spatialState.angle).GetNormalized(Vector3(0));
   }
 
   /*
@@ -1632,7 +1630,7 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
   //if (player->GetDebug()) printf("chosen: %s\n", anims->GetAnim(*dataSet.begin())->GetName().c_str());
 
   Vector3 desiredBodyDirectionRel = Vector3(0, -1, 0);
-  if (command.useDesiredLookAt) desiredBodyDirectionRel = (command.desiredLookAt - (spatialState.position + spatialState.movement * 0.1f)).GetNormalized(Vector3(0, -1, 0)).GetRotated2D(-spatialState.angle); // todo: this is a hax, fix that
+  if (command.useDesiredLookAt) desiredBodyDirectionRel = (command.desiredLookAt - (spatialState.position + spatialState.movement * 0.1f)).GetNormalized(Vector3(0, -1, 0)).GetRotated2D(-spatialState.angle);
 
   if (command.desiredFunctionType == e_FunctionType_Movement ||
       command.desiredFunctionType == e_FunctionType_Trip ||
@@ -1650,22 +1648,20 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
   }
   else if (command.desiredFunctionType == e_FunctionType_BallControl) {
     if (NeedTouch(*dataSet.begin(), command)) {
-      float hasteFactor = GetHasteFactor(false);
-      selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, hasteFactor, localInterruptAnim, preferPassAndShot);
+      selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, localInterruptAnim, preferPassAndShot);
     }
   }
   else if (command.desiredFunctionType == e_FunctionType_Trap ||
            command.desiredFunctionType == e_FunctionType_Interfere ||
            command.desiredFunctionType == e_FunctionType_Deflect) {
-    float hasteFactor = GetHasteFactor(false);
-    selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, hasteFactor, localInterruptAnim, preferPassAndShot);
+    selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, localInterruptAnim, preferPassAndShot);
   }
   else if (command.desiredFunctionType == e_FunctionType_ShortPass ||
            command.desiredFunctionType == e_FunctionType_LongPass ||
            command.desiredFunctionType == e_FunctionType_HighPass ||
            command.desiredFunctionType == e_FunctionType_Shot) {
-    float hasteFactor = GetHasteFactor(false);
-    selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, hasteFactor, localInterruptAnim);
+
+    selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, localInterruptAnim);
 /*
     if (player->GetDebug()) {
       if (CastPlayer()->AllowLastDitch()) printf("  * lastditch allowed\n");
@@ -1678,8 +1674,7 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
 */
   }
   else if (command.desiredFunctionType == e_FunctionType_Sliding) {
-    float hasteFactor = GetHasteFactor(false);
-    selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, hasteFactor, localInterruptAnim);
+    selectedAnimID = GetBestCheatableAnimID(dataSet, command.useDesiredMovement, command.desiredDirection, command.desiredVelocityFloat, command.useDesiredLookAt, desiredBodyDirectionRel, positions_tmp, touchFrame_tmp, radiusOffset_tmp, touchPos_tmp, fullActionSmuggle_tmp, actionSmuggle_tmp, rotationSmuggle_tmp, localInterruptAnim);
     if (selectedAnimID == -1) {
       if (dataSet.size() > 0) {
         selectedAnimID = *dataSet.begin();
@@ -1773,7 +1768,7 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
       currentAnim->actionSmuggleSustain = currentAnim->actionSmuggle * actionSmuggleSustainFactor;
 
       // only have a sustain when it makes the player brake
-      // todo: make more precise, based on mps
+
       if (spatialState.movement.GetLength() < (spatialState.movement + currentAnim->actionSmuggleSustain).GetLength()) currentAnim->actionSmuggleSustain = Vector3(0);
 
       //if (currentAnim->functionType == e_FunctionType_Deflect || currentAnim->functionType == e_FunctionType_Sliding) {
@@ -1800,10 +1795,7 @@ bool Humanoid::NeedTouch(int animID, const PlayerCommand &command) {
   if (fabs(match->GetBall()->GetMovement().GetLength()) > 2.0f) return true;
 
   Vector3 animMovement = anim->GetOutgoingMovement().GetRotated2D(spatialState.angle) * 0.3f + spatialState.movement * 0.7f;
-  // todo: fix this ugly and averagely functioning code :p
-  //if (FloatToEnumVelocity(anim->GetOutgoingVelocity()) == e_Velocity_Idle) {
-  //  animMovement += anim->GetOutgoingBodyDirection().GetRotated2D(spatialState.angle) * 0.2;
-  //}
+
   float animVelo = animMovement.GetLength();
   animMovement.Normalize(spatialState.directionVec);
   animMovement *= spatialState.movement.GetLength() * 0.8f + animVelo * 0.2f;
@@ -1879,7 +1871,11 @@ float Humanoid::GetBodyBallDistanceAdvantage(const Animation *anim, e_FunctionTy
 
 
   Vector3 behindVectorUnscaled = -(incomingMovement * 0.1f + touchMovement * 0.2f + outgoingMovement * 0.7f);
-  Vector3 behindVector = behindVectorUnscaled.GetNormalized(0) * pow(NormalizedClamp(behindVectorUnscaled.GetLength(), 0, sprintVelocity), 0.5f);
+  Vector3 behindVector =
+      behindVectorUnscaled.GetNormalized(0) *
+      std::pow(
+          NormalizedClamp(behindVectorUnscaled.GetLength(), 0, sprintVelocity),
+          0.5f);
 
   // cornering with a more centered behindvector for 'richer' range
   float dot = Vector3(0, -1, 0).GetDotProduct(outgoingDirection);
@@ -1898,16 +1894,27 @@ float Humanoid::GetBodyBallDistanceAdvantage(const Animation *anim, e_FunctionTy
     animToActualBall.Rotate2D(toStraightAngle);
 
     // cheating to the side (lateral) (as seen from the outgoing direction vector) is harder at high velos (effectively changes cheat circle into ellipse)
-    float lateralRadiusFactor = 0.6f - 0.3f * pow(NormalizedClamp(straightAngleVectorUnscaled.GetLength(), idleVelocity, sprintVelocity), 0.7f);
+    float lateralRadiusFactor =
+        0.6f -
+        0.3f * std::pow(NormalizedClamp(straightAngleVectorUnscaled.GetLength(),
+                                        idleVelocity, sprintVelocity),
+                        0.7f);
     animToActualBall.coords[0] /= lateralRadiusFactor; // coords[0] is now the lateral component
-    radius *= pow(1.0f / lateralRadiusFactor, 0.5f); // make sure we stick with the same surface area (= pi * r ^ 2, so just take the sqrt of lateralradiusfactor, which is effectively a surface area multiplier)
+    radius *= std::pow(
+        1.0f / lateralRadiusFactor,
+        0.5f);  // make sure we stick with the same surface area (= pi * r ^ 2,
+                // so just take the sqrt of lateralradiusfactor, which is
+                // effectively a surface area multiplier)
     /*
-    // brick wall: if balls are beyond animtouchpos in outgoingDirection territory, cut off at higher speeds and such
-    if (animToActualBall.coords[1] < 0.0f) {
-      //float brickWallDistanceFactor = 1.0f - NormalizedClamp(averageInOutVelocity, 0.0f, sprintVelocity);
+    // brick wall: if balls are beyond animtouchpos in outgoingDirection
+    territory, cut off at higher speeds and such if (animToActualBall.coords[1]
+    < 0.0f) {
+      //float brickWallDistanceFactor = 1.0f -
+    NormalizedClamp(averageInOutVelocity, 0.0f, sprintVelocity);
       //float brickWallDistance = radiusFactor * brickWallDistanceFactor * 2.0f;
-      //animToActualBall.coords[1] *= 1.0f + fastpow(averageInOutVelocity, 1.5f) * radiusFactor * 5.0f;
-      animToActualBall.coords[1] *= 1.0f + fastpow(averageInOutVelocity, 1.5f) * radiusFactor * 0.4f;
+      //animToActualBall.coords[1] *= 1.0f + pow(averageInOutVelocity, 1.5f)
+    * radiusFactor * 5.0f; animToActualBall.coords[1] *= 1.0f +
+    pow(averageInOutVelocity, 1.5f) * radiusFactor * 0.4f;
     }
     */
     // rotate back and act like nothing happened
@@ -1953,7 +1960,7 @@ float Humanoid::GetBodyBallDistanceAdvantage(const Animation *anim, e_FunctionTy
   return result;
 }
 
-signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool useDesiredMovement, const Vector3 &desiredDirection, float desiredVelocityFloat, bool useDesiredBodyDirection, const Vector3 &desiredBodyDirectionRel, std::vector<Vector3> &positions_ret, int &animTouchFrame_ret, float &radiusOffset_ret, Vector3 &touchPos_ret, Vector3 &fullActionSmuggle_ret, Vector3 &actionSmuggle_ret, radian &rotationSmuggle_ret, float hasteFactor, e_InterruptAnim localInterruptAnim, bool preferPassAndShot) const {
+signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool useDesiredMovement, const Vector3 &desiredDirection, float desiredVelocityFloat, bool useDesiredBodyDirection, const Vector3 &desiredBodyDirectionRel, std::vector<Vector3> &positions_ret, int &animTouchFrame_ret, float &radiusOffset_ret, Vector3 &touchPos_ret, Vector3 &fullActionSmuggle_ret, Vector3 &actionSmuggle_ret, radian &rotationSmuggle_ret, e_InterruptAnim localInterruptAnim, bool preferPassAndShot) const {
 
   // never allow touchanims when someone else is holding the ball in his/her hands
   if (match->GetBallRetainer() != 0 && match->GetBallRetainer() != player) return -1;
@@ -1970,7 +1977,7 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
 
   float playerHeight = player->GetPlayerData()->GetHeight();
 
-  e_FunctionType functionType = StringToFunctionType(anims->GetAnim(*iter)->GetAnimType());
+  e_FunctionType functionType = StringToFunctionType(anims->GetAnim(*iter)->GetAnimTypeStr());
 
   radian rotationSmuggle_ret_tmp = 0;
   radian predictedAngle = 0;
@@ -1986,8 +1993,6 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
 
     const std::vector<Vector3> &origPositionCache = match->GetAnimPositionCache(anim);
 
-    assert(desiredMovement.coords[2] == 0.0f);
-
     Vector3 physicsVector = CalculatePhysicsVector(anim, useDesiredMovement, desiredMovement, useDesiredBodyDirection, desiredBodyDirectionRel, positions_ret, rotationSmuggle_ret_tmp);
 
     // anim space!
@@ -1997,7 +2002,7 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
     // iterate all possible touches of this anim
     int touchNum = 0;
     Vector3 animBallPos;
-    int animTouchFrame;
+    int animTouchFrame = 0;
 
     Quaternion animBodyRot;
     Vector3 animBodyPos;
@@ -2034,8 +2039,6 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
       bool exists = footballExtension->GetTouch(touchIDs[touchNum], animBallPos, animTouchFrame);
       assert(exists);
 
-      //if (player->GetDebug()) printf("anim: %s, animTouchFrame: %i, touchIDs[touchNum]: %i, touchNum: %i, totalTouches: %i, defaultTouchFrame: %i\n", anim->GetName().c_str(), animTouchFrame, touchIDs[touchNum], touchNum, totalTouches, defaultTouchFrame);
-
       // out of bounds?
       if (match->GetBallRetainer() != player) {
         Vector3 absBallPos = match->GetBall()->Predict(animTouchFrame * 10);
@@ -2045,9 +2048,6 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
           continue;
         }
       }
-
-
-      //if (player->GetDebug()) printf("touchNum: %i, touchID: %i, animTouchFrame: %i, defaultTouchFrame: %i, touchFrameAwkwardness: %f\n", touchNum, touchIDs[touchNum], animTouchFrame, defaultTouchFrame, touchFrameAwkwardness);
 
       Vector3 touchMovement = CalculateMovementAtFrame(positions_ret, animTouchFrame).GetRotated2D(-spatialState.angle);
       Vector3 animTouchMovement = CalculateMovementAtFrame(origPositionCache, animTouchFrame);// already anim space so no: .GetRotated2D(-spatialState.angle);
@@ -2107,7 +2107,7 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
 
         // default touch can be 'cheated' towards best, has biggest 'radius'
         float touchFrameAwkwardness = NormalizedClamp(abs(defaultTouchFrame - animTouchFrame), 0.0f, 4.0f);
-        touchFrameAwkwardness = pow(touchFrameAwkwardness, 2.0f) * 0.5f;
+        touchFrameAwkwardness = std::pow(touchFrameAwkwardness, 2.0f) * 0.5f;
 
         /* todo: check if this is a possibility in some form
               // add this to desired cheatvec to get more of a flowing feeling to it
@@ -2117,7 +2117,10 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
         */
 
         float touchFrameFactor = animTouchFrame / 24.0f; // makes it 0.5 around the 'average touchframe' (educated guess average)
-        touchFrameFactor = pow(touchFrameFactor, 0.7f); // advantage for anims that touch the ball earlier. rationale: more cheating, sure, but for a shorter period
+        touchFrameFactor = std::pow(
+            touchFrameFactor,
+            0.7f);  // advantage for anims that touch the ball earlier.
+                    // rationale: more cheating, sure, but for a shorter period
         // even steeper falloff after 1.0
         if (touchFrameFactor > 1.0f) touchFrameFactor = 1.0f + ((touchFrameFactor - 1.0f) * 0.5f);
 
@@ -2245,7 +2248,13 @@ signed int Humanoid::GetBestCheatableAnimID(const DataSet &sortedDataSet, bool u
         if (discardForwardSmuggle) {
           //if (player->GetDebug()) SetGreenDebugPilon(spatialState.position + actionSmuggle_ret * 1.0f);
           float shortenForwardDistance = 0.02f;
-          float allowForwardDistance = 0.25f * (1.0f - pow(NormalizedClamp(adaptedOutgoingMovement.GetLength(), idleVelocity, sprintVelocity - 2.0f), 0.6f)) * (animTouchFrame_ret * 0.1f);
+          float allowForwardDistance =
+              0.25f *
+              (1.0f -
+               std::pow(NormalizedClamp(adaptedOutgoingMovement.GetLength(),
+                                        idleVelocity, sprintVelocity - 2.0f),
+                        0.6f)) *
+              (animTouchFrame_ret * 0.1f);
           if (functionType != e_FunctionType_BallControl && functionType != e_FunctionType_Trap) allowForwardDistance += 0.1f; // allow pass/shot/intefere anims and such to smuggle forwards more, since their follow-up-movement doesn't matter that much
           if (actionSmuggle_ret.coords[1] < 0.0f) actionSmuggle_ret.coords[1] = clamp(actionSmuggle_ret.coords[1] + shortenForwardDistance, -allowForwardDistance, 0.0f);
         }

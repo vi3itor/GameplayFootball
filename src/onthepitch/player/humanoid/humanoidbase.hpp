@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,8 +18,8 @@
 #ifndef _HPP_HUMANOIDBASE
 #define _HPP_HUMANOIDBASE
 
-#include "base/math/vector3.hpp"
-#include "scene/scene3d/node.hpp"
+#include "../../../base/math/vector3.hpp"
+#include "../../../scene/scene3d/node.hpp"
 
 #include "../../../gamedefines.hpp"
 #include "../../../utils.hpp"
@@ -30,18 +43,18 @@ struct Joint {
 };
 
 struct WeightedBone {
-  int jointID;
-  float weight;
+  int jointID = 0;
+  float weight = 0.0f;
 };
 
 struct WeightedVertex {
-  int vertexID;
+  int vertexID = 0;
   std::vector<WeightedBone> bones;
 };
 
 struct FloatArray {
   float *data;
-  int size;
+  int size = 0;
 };
 
 enum e_InterruptAnim {
@@ -82,8 +95,8 @@ struct Anim {
   }
 
   Animation *anim;
-  signed int id;
-  int frameNum;
+  signed int id = 0;
+  int frameNum = 0;
 
   e_FunctionType functionType;
 
@@ -98,8 +111,8 @@ struct Anim {
   Vector3 movementSmuggleOffset;
   RotationSmuggle rotationSmuggle;
   radian rotationSmuggleOffset;
-  signed int touchFrame;
-  float radiusOffset;
+  signed int touchFrame = 0;
+  float radiusOffset = 0.0f;
   Vector3 touchPos;
 
   Vector3 incomingMovement;
@@ -110,24 +123,6 @@ struct Anim {
   PlayerCommand originatingCommand;
 
   std::vector<Vector3> positions;
-};
-
-struct IdealAnimDescription {
-  IdealAnimDescription() {
-    foot = e_Foot_Left;
-    incomingVelocityFloat = 0.0f;
-    outgoingMovementRel = Vector3(0, 0, 0);;
-    incomingBodyDirectionRel = Vector3(0, -1, 0);
-    desiredLookAtAbs = Vector3(0, 0, 0);
-    baseAnim = false;
-  }
-
-  e_Foot foot;
-  float incomingVelocityFloat;
-  Vector3 outgoingMovementRel;
-  Vector3 incomingBodyDirectionRel;
-  Vector3 desiredLookAtAbs;
-  bool baseAnim;
 };
 
 struct AnimApplyBuffer {
@@ -151,11 +146,11 @@ struct AnimApplyBuffer {
     offsets = src.offsets;
   }
   Animation *anim;
-  int frameNum;
-  unsigned long snapshotTime_ms;
-  bool smooth;
-  float smoothFactor;
-  bool noPos;
+  int frameNum = 0;
+  unsigned long snapshotTime_ms = 0;
+  bool smooth = false;
+  float smoothFactor = 0.0f;
+  bool noPos = false;
   Vector3 position;
   radian orientation;
   std::map < std::string, BiasedOffset > offsets;
@@ -174,7 +169,7 @@ struct SpatialState {
   radian angle;
   Vector3 directionVec; // for efficiency, vector version of angle
   e_Velocity enumVelocity;
-  float floatVelocity; // for efficiency, float version
+  float floatVelocity = 0.0f; // for efficiency, float version
 
   Vector3 actualMovement;
   Vector3 physicsMovement; // ignores effects like positionoffset
@@ -219,8 +214,9 @@ class HumanoidBase {
 
     inline Vector3 GetPosition() const { return spatialState.position; }
     inline Vector3 GetDirectionVec() const { return spatialState.directionVec; }
-    inline Vector3 GetBodyDirectionVec() const { return spatialState.bodyDirectionVec; }
-    inline radian GetAngle() const { return spatialState.angle; }
+    inline Vector3 GetBodyDirectionVec() const {
+      return spatialState.bodyDirectionVec;
+    }
     inline radian GetRelBodyAngle() const { return spatialState.relBodyAngle; }
     inline e_Velocity GetEnumVelocity() const { return spatialState.enumVelocity; }
     inline e_FunctionType GetCurrentFunctionType() const { return currentAnim->functionType; }
@@ -241,7 +237,6 @@ class HumanoidBase {
     virtual float GetDecayingDifficultyFactor() const { return decayingDifficultyFactor; }
 
     const Anim *GetCurrentAnim() { return currentAnim; }
-    const Anim *GetPreviousAnim() { return previousAnim; }
 
     const NodeMap &GetNodeMap() { return nodeMap; }
 
@@ -273,23 +268,24 @@ class HumanoidBase {
     void SetMovementSimilarityPredicate(const Vector3 &relDesiredDirection, e_Velocity desiredVelocity) const;
     float GetMovementSimilarity(int animIndex, const Vector3 &relDesiredDirection, e_Velocity desiredVelocity, float corneringBias) const;
     bool CompareMovementSimilarity(int animIndex1, int animIndex2) const;
-    bool CompareDirectionSimilarity(int animIndex1, int animIndex2) const;
-    bool CompareOutgoingVelocitySimilarity(int animIndex1, int animIndex2) const;
-    void SetIncomingBodyDirectionSimilarityPredicate(const Vector3 &relIncomingBodyDirection) const;
+    void SetIncomingBodyDirectionSimilarityPredicate(
+        const Vector3 &relIncomingBodyDirection) const;
     bool CompareIncomingBodyDirectionSimilarity(int animIndex1, int animIndex2) const;
     void SetBodyDirectionSimilarityPredicate(const Vector3 &lookAt) const;
     bool CompareBodyDirectionSimilarity(int animIndex1, int animIndex2) const;
     void SetTripDirectionSimilarityPredicate(const Vector3 &relDesiredTripDirection) const;
     bool CompareTripDirectionSimilarity(int animIndex1, int animIndex2) const;
-    void SetBallDirectionSimilarityPredicate(const Vector3 &relDesiredBallDirection) const;
-    bool CompareBallDirectionSimilarity(int animIndex1, int animIndex2) const;
     bool CompareBaseanimSimilarity(int animIndex1, int animIndex2) const;
     bool CompareCatchOrDeflect(int animIndex1, int animIndex2) const;
     void SetNumericVariableSimilarityPredicate(const std::string &varName, float desiredValue) const;
     bool CompareNumericVariable(int animIndex1, int animIndex2) const;
 
-    Vector3 CalculatePhysicsVector(Animation *anim, bool useDesiredMovement, const Vector3 &desiredMovement, bool useDesiredBodyDirection, const Vector3 &desiredBodyDirectionRel, std::vector<Vector3> &positions_ret, radian &rotationOffset_ret) const;
-    Vector3 CalculatePhysicsVector_disabled(Animation *anim, const Vector3 &desiredMovement, std::vector<Vector3> &positions_ret) const;
+    Vector3 CalculatePhysicsVector(Animation *anim, bool useDesiredMovement,
+                                   const Vector3 &desiredMovement,
+                                   bool useDesiredBodyDirection,
+                                   const Vector3 &desiredBodyDirectionRel,
+                                   std::vector<Vector3> &positions_ret,
+                                   radian &rotationOffset_ret) const;
 
     Vector3 ForceIntoAllowedBodyDirectionVec(const Vector3 &src) const;
     radian ForceIntoAllowedBodyDirectionAngle(radian angle) const; // for making small differences irrelevant while sorting
@@ -299,7 +295,7 @@ class HumanoidBase {
     boost::intrusive_ptr<Node> fullbodyNode;
     std::vector<FloatArray> uniqueFullbodyMesh;
     std::vector < std::vector<WeightedVertex> > weightedVerticesVec; // < subgeoms < vertices > >
-    unsigned int fullbodySubgeomCount;
+    unsigned int fullbodySubgeomCount = 0;
     std::vector<int*> uniqueIndicesVec;
     std::vector<Joint> joints;
     Vector3 fullbodyOffset;
@@ -324,17 +320,17 @@ class HumanoidBase {
 
     std::vector<TemporalHumanoidNode> buf_TemporalHumanoidNodes;
 
-    bool buf_LowDetailMode;
-    int buf_bodyUpdatePhase;
-    int buf_bodyUpdatePhaseOffset;
+    bool buf_LowDetailMode = false;
+    int buf_bodyUpdatePhase = 0;
+    int buf_bodyUpdatePhaseOffset = 0;
 
     AnimApplyBuffer fetchedbuf_animApplyBuffer;
 
-    unsigned long fetchedbuf_previousSnapshotTime_ms;
+    unsigned long fetchedbuf_previousSnapshotTime_ms = 0;
 
-    bool fetchedbuf_LowDetailMode;
-    int fetchedbuf_bodyUpdatePhase;
-    int fetchedbuf_bodyUpdatePhaseOffset;
+    bool fetchedbuf_LowDetailMode = false;
+    int fetchedbuf_bodyUpdatePhase = 0;
+    int fetchedbuf_bodyUpdatePhaseOffset = 0;
 
     std::map < std::string, BiasedOffset > offsets;
 
@@ -355,33 +351,33 @@ class HumanoidBase {
     Vector3 previousPosition2D;
 
     e_InterruptAnim interruptAnim;
-    int reQueueDelayFrames;
-    int tripType;
+    int reQueueDelayFrames = 0;
+    int tripType = 0;
     Vector3 tripDirection;
 
     Vector3 decayingPositionOffset;
-    float decayingDifficultyFactor;
+    float decayingDifficultyFactor = 0.0f;
 
     // for comparing dataset entries (needed by std::list::sort)
     mutable e_Foot predicate_DesiredFoot;
     mutable e_Velocity predicate_IncomingVelocity;
     mutable Vector3 predicate_RelDesiredDirection;
     mutable Vector3 predicate_DesiredDirection;
-    mutable float predicate_CorneringBias;
+    mutable float predicate_CorneringBias = 0.0f;
     mutable e_Velocity predicate_DesiredVelocity;
     mutable Vector3 predicate_RelIncomingBodyDirection;
     mutable Vector3 predicate_LookAt;
     mutable Vector3 predicate_RelDesiredTripDirection;
     mutable Vector3 predicate_RelDesiredBallDirection;
     mutable std::string predicate_NumericVariableName;
-    mutable float predicate_NumericVariableValue;
+    mutable float predicate_NumericVariableValue = 0.0f;
 
     const MentalImage *currentMentalImage;
 
-    float _cache_AgilityFactor;
-    float _cache_AccelerationFactor;
+    float _cache_AgilityFactor = 0.0f;
+    float _cache_AccelerationFactor = 0.0f;
 
-    float zMultiplier;
+    float zMultiplier = 0.0f;
 
     std::vector<Vector3> allowedBodyDirVecs;
     std::vector<radian> allowedBodyDirAngles;

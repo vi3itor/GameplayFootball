@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -9,11 +22,9 @@
 
 #include "base/math/vector3.hpp"
 
-#include <SDL/SDL.h> // for key ids
+#include "wrap_SDL.h" // for key ids
 
 using namespace blunted;
-
-extern unsigned long time_ms;
 
 const float idleVelocity = 0.0f;
 const float dribbleVelocity = 3.5f;
@@ -74,7 +85,7 @@ typedef std::list<int> DataSet;
 typedef std::deque<int> DataSet;
 #endif
 
-const SDLKey defaultKeyIDs[18] = { SDLK_UP, SDLK_RIGHT, SDLK_DOWN, SDLK_LEFT, SDLK_w, SDLK_a, SDLK_s, SDLK_d, SDLK_w, SDLK_a, SDLK_s, SDLK_d, SDLK_q, SDLK_z, SDLK_e, SDLK_c, SDLK_F1, SDLK_RETURN };
+const SDL_Keycode defaultKeyIDs[18] = { SDLK_UP, SDLK_RIGHT, SDLK_DOWN, SDLK_LEFT, SDLK_w, SDLK_a, SDLK_s, SDLK_d, SDLK_w, SDLK_a, SDLK_s, SDLK_d, SDLK_q, SDLK_z, SDLK_e, SDLK_c, SDLK_F1, SDLK_RETURN };
 
 class Player;
 
@@ -114,16 +125,6 @@ enum e_TouchType {
   e_TouchType_Accidental, // collisions
   e_TouchType_None,
   e_TouchType_SIZE
-};
-
-enum e_SetPiece {
-  e_SetPiece_None,
-  e_SetPiece_KickOff,
-  e_SetPiece_GoalKick,
-  e_SetPiece_FreeKick,
-  e_SetPiece_Corner,
-  e_SetPiece_ThrowIn,
-  e_SetPiece_Penalty,
 };
 
 enum e_MatchPhase {
@@ -230,43 +231,8 @@ struct PlayerCommand {
 
 typedef std::vector<PlayerCommand> PlayerCommandQueue;
 
-enum e_PlayerRole {
-  e_PlayerRole_GK,
-  e_PlayerRole_CB,
-  e_PlayerRole_LB,
-  e_PlayerRole_RB,
-  e_PlayerRole_DM,
-  e_PlayerRole_CM,
-  e_PlayerRole_LM,
-  e_PlayerRole_RM,
-  e_PlayerRole_AM,
-  e_PlayerRole_CF,
-};
-
 std::string GetRoleName(e_PlayerRole playerRole);
 e_PlayerRole GetRoleFromString(const std::string &roleString);
-
-struct FormationEntry {
-  e_PlayerRole role;
-  Vector3 databasePosition;
-  Vector3 position; // adapted to player role (combination of databasePosition and hardcoded role position)
-};
-
-struct PlayerImage {
-  int teamID;
-  signed int side;
-  int playerID;
-  Player *player;
-  Vector3 position;
-  Vector3 directionVec;
-  Vector3 bodyDirectionVec;
-  float velocity;
-  Vector3 movement;
-  FormationEntry formationEntry;
-  FormationEntry dynamicFormationEntry;
-};
-
-bool PlayerImageDepthSortFunc(const PlayerImage &a, const PlayerImage &b);
 
 const float pitchHalfW = 55; // only inside side- and backlines
 const float pitchHalfH = 36;
@@ -277,6 +243,50 @@ const float lineHalfW = 0.06f;
 const float goalDepth = 2.55f;
 const float goalHeight = 2.5f;
 const float goalHalfWidth = 3.7f;
+
+const float FORMATION_Y_SCALE = -2.36f;
+
+struct FormationEntry {
+  FormationEntry() {}
+  // Constructor accepts environment coordinates.
+  FormationEntry(float x, float y, e_PlayerRole role, bool lazy)
+      : role(role),
+        lazy(lazy),
+        databasePosition(x, y * FORMATION_Y_SCALE, 0),
+        position(x, y * FORMATION_Y_SCALE, 0),
+        start_position(x, y * FORMATION_Y_SCALE, 0) {
+  }
+  bool operator == (const FormationEntry& f) const {
+    return role == f.role &&
+        lazy == f.lazy &&
+        databasePosition == f.databasePosition &&
+        position == f.position;
+  }
+  Vector3 position_env() {
+    return Vector3(position.coords[0],
+                   position.coords[1] / FORMATION_Y_SCALE,
+                   position.coords[2]);
+  }
+  e_PlayerRole role = e_PlayerRole_GK;
+  bool lazy = false; // Computer doesn't perform any actions for lazy player.
+  Vector3 databasePosition;
+  Vector3 position; // adapted to player role (combination of databasePosition and hardcoded role position)
+  Vector3 start_position;
+};
+
+struct PlayerImage {
+  int teamID = 0;
+  signed int side = 0;
+  int playerID = 0;
+  Player *player;
+  Vector3 position;
+  Vector3 directionVec;
+  Vector3 bodyDirectionVec;
+  float velocity = 0.0f;
+  Vector3 movement;
+  FormationEntry formationEntry;
+  FormationEntry dynamicFormationEntry;
+};
 
 enum e_DecayType {
   e_DecayType_Constant,
@@ -296,43 +306,13 @@ struct ForceSpot {
   Vector3 origin;
   e_MagnetType magnetType;
   e_DecayType decayType;
-  float exp;
-  float power;
-  float scale; // scaled #meters until effect is almost decimated
+  float exp = 0.0f;
+  float power = 0.0f;
+  float scale = 0.0f; // scaled #meters until effect is almost decimated
 };
-
-class PassRating {
-
-  public:
-    PassRating(int playerID, float odds, float pos, float sit) : playerID(playerID), odds(odds), pos(pos), sit(sit), rating(0) {}
-    virtual ~PassRating() {}
-
-    void CalculateRating(float opportunism) {
-      rating = (sit * 1.0f + odds * 1.0f) * 0.5f * (1 - opportunism) +
-               pos * opportunism;
-    }
-
-    bool operator < (const PassRating &otherPassRating) const {
-      return rating < otherPassRating.rating;
-    }
-
-    int playerID;
-
-    // 0 .. 1 == worst .. best
-    float odds; // what are the odds a pass to this player will complete?
-    float pos; // is this player in a good position?
-    float sit; // target's situational rating
-    float rating; // resulting rating
-
-};
-
-typedef std::vector<PassRating> PassRatings;
-
 
 void GetVertexColors(std::map<Vector3, Vector3> &colorCoords);
 
 e_FunctionType StringToFunctionType(const std::string &fun);
-
-float GetGlobalVelocityMultiplier();
 
 #endif

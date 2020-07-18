@@ -1,17 +1,30 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "objectloader.hpp"
 
-#include "base/utils.hpp"
-#include "types/resource.hpp"
-#include "scene/resources/geometrydata.hpp"
-#include "scene/objects/geometry.hpp"
-#include "scene/objects/light.hpp"
-#include "scene/objects/joint.hpp"
-#include "managers/resourcemanagerpool.hpp"
-#include "scene/objectfactory.hpp"
+#include "../base/utils.hpp"
+#include "../types/resource.hpp"
+#include "../scene/resources/geometrydata.hpp"
+#include "../scene/objects/geometry.hpp"
+#include "../scene/objects/light.hpp"
+#include "../scene/objects/joint.hpp"
+#include "../managers/resourcemanagerpool.hpp"
+#include "../scene/objectfactory.hpp"
 
 namespace blunted {
 
@@ -19,54 +32,6 @@ namespace blunted {
   }
 
   ObjectLoader::~ObjectLoader() {
-  }
-
-  boost::intrusive_ptr<Node> ObjectLoader::LoadLevel(boost::shared_ptr<Scene3D> scene3D, const std::string &filename) const {
-
-    XMLLoader loader;
-    XMLTree levelTree = loader.LoadFile(filename);
-
-    boost::intrusive_ptr<Node> levelNode(new Node("levelnode: " + filename));
-
-    map_XMLTree::iterator iter = levelTree.children.begin()->second.children.begin();
-    while (iter != levelTree.children.begin()->second.children.end()) {
-      if ((*iter).first == "object") {
-        //printf("object found \n");
-
-        // filename & position
-        std::string filename;
-        Vector3 position;
-        Quaternion rotation;
-        radian angle = 0;
-
-        map_XMLTree::iterator objectIter = (*iter).second.children.begin();
-        while (objectIter != (*iter).second.children.end()) {
-          if (objectIter->first == "filename") {
-            //printf("file: %s\n", objectIter->second.value.c_str());
-            filename = objectIter->second.value;
-          }
-          if (objectIter->first == "position") {
-            //printf("position: %s\n", objectIter->second.value.c_str());
-            position = GetVectorFromString(objectIter->second.value);
-          }
-          if (objectIter->first == "rotation") {
-            rotation = GetQuaternionFromString(objectIter->second.value);
-          }
-
-          objectIter++;
-        }
-
-        boost::intrusive_ptr<Node> objNode = LoadObject(scene3D, "media/" + filename);
-        objNode->SetPosition(position);
-        objNode->SetRotation(rotation);
-
-        levelNode->AddNode(objNode);
-      }
-
-      iter++;
-    }
-
-    return levelNode;
   }
 
   boost::intrusive_ptr<Node> ObjectLoader::LoadObject(boost::shared_ptr<Scene3D> scene3D, const std::string &filename, const Vector3 &offset) const {
@@ -165,7 +130,7 @@ namespace blunted {
 
           iter++;
         }
-        boost::intrusive_ptr < Resource<GeometryData> > geometry = ResourceManagerPool::GetInstance().GetManager<GeometryData>(e_ResourceType_GeometryData)->Fetch(dirpart + aseFilename, true);
+        boost::intrusive_ptr < Resource<GeometryData> > geometry = ResourceManagerPool::getGeometryManager()->Fetch(dirpart + aseFilename, true);
         boost::intrusive_ptr<Geometry> object = static_pointer_cast<Geometry>(ObjectFactory::GetInstance().CreateObject(objectName, objectType));
         if (properties.GetBool("dynamic")) geometry->GetResource()->SetDynamic(true);
 

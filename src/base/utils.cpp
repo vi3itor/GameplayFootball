@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -252,36 +265,6 @@ namespace blunted {
     return quaternion;
   }
 
-  // http://stackoverflow.com/questions/8593608/how-can-i-copy-a-directory-using-boost-filesystem
-  // by user http://stackoverflow.com/users/1056003/nijansen
-  // 1 == src dir illegal
-  // 2 == dest already exists
-  // 3 == could not create dest
-  // 4 == could not copy file (disk full?)
-  int CopyDirectory(boost::filesystem::path const &source, boost::filesystem::path const &destination) {
-    boost::system::error_code error;
-
-    namespace fs = boost::filesystem;
-
-    if (!fs::exists(source) || !fs::is_directory(source, error)) return 1; // source dir not found
-    if (fs::exists(destination)) return 2; // destination exists
-    if (!fs::create_directory(destination, error)) return 3; // could not create dir
-
-    for (fs::directory_iterator file(source); file != fs::directory_iterator(); ++file) {
-      fs::path current(file->path());
-      if (fs::is_directory(current, error)) {
-        // found directory: recursion
-        int retCode = CopyDirectory(current, destination / current.filename());
-        if (retCode != 0) return retCode;
-      } else {
-        // found file: copy
-        fs::copy_file(current, destination / current.filename(), error);
-        if (error) return 4;
-      }
-    }
-    return 0;
-  }
-
   bool CreateDirectory(boost::filesystem::path const &dir) {
     namespace fs = boost::filesystem;
     return fs::create_directory(dir);
@@ -291,25 +274,8 @@ namespace blunted {
     boost::system::error_code error;
     namespace fs = boost::filesystem;
     fs::copy_file(source, destinationDir / source.filename(), error);
-    if (error.value() != 0) return false; else return true;
+    //if (error != 0) return false; else return true;
+    return true;
   }
-
-  // http://stackoverflow.com/questions/2535284/how-can-i-hash-a-string-to-an-int-using-c
-  unsigned long GetHashFromCharString(const char *str) {
-
-    unsigned long hash = 5381;
-    int c;
-
-    while((c = *str++)) {
-      hash = ((hash << 5) + hash) + c;
-    }
-
-    return hash;
-
-  }
-
 }
 
-namespace boost { // filesystem functions need this for some reason
-  void assertion_failed_msg(char const *expr, char const *msg, char const *function, char const *file, long line) {}
-}

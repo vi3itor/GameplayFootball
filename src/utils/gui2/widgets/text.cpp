@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -6,7 +19,7 @@
 
 #include "../windowmanager.hpp"
 
-#include "SDL/SDL_ttf.h"
+#include "wrap_SDL_ttf.h"
 
 namespace blunted {
 
@@ -21,33 +34,6 @@ namespace blunted {
   }
 
   Gui2Text::~Gui2Text() {
-  }
-
-  void Gui2Text::SetColor(const Vector3 &color) {
-    if (color != this->color) {
-      this->color = color;
-      Redraw();
-    }
-  }
-
-  void Gui2Text::SetOutlineColor(const Vector3 &outlineColor) {
-    if (outlineColor != this->outlineColor) {
-      this->outlineColor = outlineColor;
-      Redraw();
-    }
-  }
-
-  void Gui2Text::ClearText() {
-    text.clear();
-
-    resultText.clear();
-
-    std::vector<Gui2View*> childrenCopy = children; // need to make copy: child->Exit will remove itself from *this->children
-    for (int i = (signed int)childrenCopy.size() - 1; i >= 0; i--) { // filo
-      childrenCopy.at(i)->Exit();
-      delete childrenCopy.at(i);
-    }
-    children.clear();
   }
 
   void Gui2Text::AddEmptyLine() {

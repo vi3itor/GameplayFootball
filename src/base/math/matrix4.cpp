@@ -1,8 +1,23 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "matrix4.hpp"
+
+#include <cmath>
 
 namespace blunted {
 
@@ -150,9 +165,11 @@ namespace blunted {
     /* calculate determinant */
     det=src[0]*dst[0]+src[1]*dst[1]+src[2]*dst[2]+src[3]*dst[3];
     /* calculate matrix inverse */
-    det = 1/det;
-    for (int j = 0; j < 16; j++)
-        dst[j] *= det;
+    if (det != 0.0f) {
+      det = 1/det;
+      for (int j = 0; j < 16; j++)
+          dst[j] *= det;
+    }
 
     Matrix4 tmpm(dst);
     return tmpm;
@@ -291,29 +308,34 @@ namespace blunted {
 
     // https://solarianprogrammer.com/2013/05/22/opengl-101-matrices-projection-view-model/
 
-    float top = zNear * tan(fov * (pi / 360.0f));
+    float top = zNear * std::tan(fov * (pi / 360.0f));
     float bottom = -top;
     float right = top * aspect;
     float left = -right;//bottom * aspect;
 
-    elements[0] = (2 * zNear) / (right - left);
+    volatile float zFar_min_zNear = 0;
+    if (fabs(zFar - zNear) > EPSILON) {
+      zFar_min_zNear = 1.0f / (zFar - zNear);
+    }
+
+    elements[0] = right != left ? (2 * zNear) / (right - left) : 0;
     elements[1] = 0;
     elements[2] = 0;
     elements[3] = 0;
 
     elements[4] = 0;
-    elements[5] = (2 * zNear) / (top - bottom);
+    elements[5] = fabs(top - bottom) > EPSILON ? (2 * zNear) / (top - bottom) : 0;
     elements[6] = 0;
     elements[7] = 0;
 
-    elements[8] = (right + left) / (right - left);
-    elements[9] = (top + bottom) / (top - bottom);
-    elements[10] = -((zFar + zNear) / (zFar - zNear));
+    elements[8] = fabs(right - left) > EPSILON ? (right + left) / (right - left) : 0;
+    elements[9] = fabs(top - bottom) > EPSILON ? (top + bottom) / (top - bottom) : 0;
+    elements[10] = -(zFar + zNear) * zFar_min_zNear;
     elements[11] = -1;
 
     elements[12] = 0;
     elements[13] = 0;
-    elements[14] = -((2 * zFar * zNear) / (zFar - zNear));
+    elements[14] = -(2 * zFar * zNear) * zFar_min_zNear;
     elements[15] = 0;
 
     Transpose(); // to non-opengl
@@ -323,24 +345,24 @@ namespace blunted {
 
     // https://solarianprogrammer.com/2013/05/22/opengl-101-matrices-projection-view-model/
 
-    elements[0] = 2 / (right - left);
+    elements[0] = fabs(right - left) > EPSILON ? 2 / (right - left) : 0;
     elements[1] = 0;
     elements[2] = 0;
     elements[3] = 0;
 
     elements[4] = 0;
-    elements[5] = 2 / (top - bottom);
+    elements[5] = fabs(top - bottom) > EPSILON ? 2 / (top - bottom) : 0;
     elements[6] = 0;
     elements[7] = 0;
 
     elements[8] = 0;
     elements[9] = 0;
-    elements[10] = -(2 / (zFar - zNear));
+    elements[10] = fabs(zFar - zNear) > EPSILON ? -(2 / (zFar - zNear)): 0;
     elements[11] = 0;
 
-    elements[12] = -((right + left) / (right - left));
-    elements[13] = -((top + bottom) / (top - bottom));
-    elements[14] = -((zFar + zNear) / (zFar - zNear));
+    elements[12] = fabs(right - left) > EPSILON ? -((right + left) / (right - left)) : 0;
+    elements[13] = fabs(top - bottom) > EPSILON ? -((top + bottom) / (top - bottom)) : 0;
+    elements[14] = fabs(zFar - zNear) > EPSILON ? -((zFar + zNear) / (zFar - zNear)) : 0;
     elements[15] = 1;
 
     Transpose(); // to non-opengl

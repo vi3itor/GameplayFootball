@@ -1,11 +1,24 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "xmlloader.hpp"
 
-#include "base/utils.hpp"
-#include "base/log.hpp"
+#include "../base/utils.hpp"
+#include "../base/log.hpp"
 
 namespace blunted {
 
@@ -33,9 +46,6 @@ namespace blunted {
     return tree;
   }
 
-  void XMLLoader::Save(XMLTree &source, const std::string &filename) {
-  }
-
   std::string XMLLoader::GetSource(const XMLTree &source, int depth) const {
     std::string result;
 
@@ -61,29 +71,6 @@ namespace blunted {
     }
 
     return result;
-  }
-
-  void XMLLoader::PrintTree(const XMLTree &source) const {
-    /*std::multimap<std::string, XMLTree>::const_iterator iter = source.children.begin();
-    if (iter == source.children.end()) {
-      if (source.value != "") {
-        for (int i = 0; i < depth; i++) printf("\t");
-        printf("'%s'\n", source.value.c_str());
-      }
-    } else {
-      while (iter != source.children.end()) {
-        for (int i = 0; i < depth; i++) printf("\t");
-        printf("<%s>\n", (*iter).first.c_str());
-
-        PrintTree((*iter).second, depth + 1);
-
-        for (int i = 0; i < depth; i++) printf("\t");
-        printf("</%s>\n", (*iter).first.c_str());
-
-        iter++;
-      }
-    }*/
-    printf("%s\n", GetSource(source).c_str());
   }
 
   void XMLLoader::BuildTree(XMLTree &tree, const std::string &source) {

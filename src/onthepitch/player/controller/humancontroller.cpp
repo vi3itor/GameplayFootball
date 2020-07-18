@@ -1,8 +1,23 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "humancontroller.hpp"
+#include <math.h>
+#include <cmath>
 
 #include "../../AIsupport/AIfunctions.hpp"
 
@@ -107,7 +122,7 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
       // action button released!
 
       // force set piece methods
-      if (match->IsInSetPiece() && team->GetController()->GetPieceTaker() == player && team->GetController()->GetSetPieceType() == e_SetPiece_KickOff) {
+      if (match->IsInSetPiece() && team->GetController()->GetPieceTaker() == player && team->GetController()->GetSetPieceType() == e_GameMode_KickOff) {
 
         PlayerCommand command;
 
@@ -132,7 +147,7 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
         command.useDesiredMovement = false;
         command.useDesiredLookAt = false;
 
-        float inputPower = clamp(pow(gaugeFactor, 0.7f), 0.01f, 1.0f);
+        float inputPower = clamp(std::pow(gaugeFactor, 0.7f), 0.01f, 1.0f);
         command.touchInfo.inputDirection = inputDirection;
         command.touchInfo.inputPower = inputPower;
         command.touchInfo.autoDirectionBias = GetConfiguration()->GetReal("gameplay_shortpass_autodirection", _default_ShortPass_AutoDirection);
@@ -149,7 +164,7 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
         command.useDesiredMovement = false;
         command.useDesiredLookAt = false;
 
-        float inputPower = clamp(pow(gaugeFactor, 0.65f), 0.01f, 1.0f);
+        float inputPower = clamp(std::pow(gaugeFactor, 0.65f), 0.01f, 1.0f);
         command.touchInfo.inputDirection = inputDirection;
         command.touchInfo.inputPower = inputPower;
         command.touchInfo.autoDirectionBias = GetConfiguration()->GetReal("gameplay_throughpass_autodirection", _default_ThroughPass_AutoDirection);
@@ -166,7 +181,7 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
         command.useDesiredMovement = false;
         command.useDesiredLookAt = false;
 
-        float inputPower = clamp(pow(gaugeFactor, 0.55f), 0.01f, 1.0f);
+        float inputPower = clamp(std::pow(gaugeFactor, 0.55f), 0.01f, 1.0f);
         command.touchInfo.inputDirection = inputDirection;
         command.touchInfo.inputPower = inputPower;
         command.touchInfo.autoDirectionBias = GetConfiguration()->GetReal("gameplay_highpass_autodirection", _default_HighPass_AutoDirection);
@@ -187,7 +202,8 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
         command.touchInfo.autoDirectionBias = GetConfiguration()->GetReal("gameplay_shot_autodirection", _default_Shot_AutoDirection);
         if (GetHIDevice()->GetDeviceType() == e_HIDeviceType_Keyboard) command.touchInfo.autoDirectionBias = 1.0f;
         command.touchInfo.desiredDirection = AI_GetShotDirection(CastPlayer(), command.touchInfo.inputDirection, command.touchInfo.autoDirectionBias);
-        command.touchInfo.desiredPower = clamp(pow(gaugeFactor, 0.6f), 0.01f, 1.0f);
+        command.touchInfo.desiredPower =
+            clamp(std::pow(gaugeFactor, 0.6f), 0.01f, 1.0f);
 
         commandQueue.push_back(command);
 
@@ -260,11 +276,14 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
     Vector3 inputDirectionSave2 = inputDirection;
     float inputVelocitySave2 = inputVelocityFloat;
     if (actionMode == 2) {
-      float dot = CastPlayer()->GetDirectionVec().GetDotProduct(inputDirection) * 0.5f + 0.5f; // todo: test
+      float dot = CastPlayer()->GetDirectionVec().GetDotProduct(inputDirection) * 0.5f + 0.5f;
+      if (dot < 0) {
+        dot = 0;
+      }
       if (CastPlayer()->GetEnumVelocity() != e_Velocity_Idle) {
         inputDirection = (CastPlayer()->GetDirectionVec() * 1.0f + inputDirection * 0.0f).GetNormalized(inputDirection); // want inputdirection to be biggest, so we won't stubbornly fail to do 180s
       }
-      dot = pow(dot, 1.5f); // prefer braking, even on slight angles
+      dot = std::pow(dot, 1.5f);  // prefer braking, even on slight angles
       dot = dot * 0.8f + 0.2f;
       dot *= 0.9f; // else, <=walk-anims may never work (backheels and such)
       inputVelocityFloat = CastPlayer()->GetFloatVelocity() * dot;
@@ -307,14 +326,14 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
     PlayerCommand &command = commandQueue.at(commandQueue.size() - 1);
     assert(command.desiredFunctionType == e_FunctionType_Movement); // make sure this is the movement command (is probably guaranteed, check out _MovementCommand)
 
-/*
-    // no magnet
-    command.desiredDirection = inputDirection;
-    command.desiredVelocityFloat = inputVelocityFloat;
-    if (command.desiredVelocityFloat < idleDribbleSwitch) command.desiredDirection = (_mentalImage->GetBallPrediction(500).Get2D() - player->GetPosition()).GetNormalized(inputDirection);
-    //command.desiredLookAt = CastPlayer()->GetPosition() + inputDirection * 10;
-    command.desiredLookAt = _mentalImage->GetBallPrediction(500).Get2D();
-*/
+    if (!match->GetUseMagnet()) {
+      // no magnet
+      command.desiredDirection = inputDirection;
+      command.desiredVelocityFloat = inputVelocityFloat;
+      if (command.desiredVelocityFloat < idleDribbleSwitch) command.desiredDirection = (_mentalImage->GetBallPrediction(500).Get2D() - player->GetPosition()).GetNormalized(inputDirection);
+      //command.desiredLookAt = CastPlayer()->GetPosition() + inputDirection * 10;
+      command.desiredLookAt = _mentalImage->GetBallPrediction(500).Get2D();
+    }
 
     // super cancel
     if (hid->GetButton(e_ButtonFunction_Dribble) && hid->GetButton(e_ButtonFunction_Sprint)) {
@@ -337,7 +356,7 @@ void HumanController::Process() {
   PlayerController::Process();
 
   Vector3 currentDirection;
-  float dud;
+  float dud = 0.0f;
   _GetHidInput(currentDirection, dud);
   radian angle = fabs(currentDirection.GetAngle2D(previousDirection));
   previousDirection = currentDirection;
@@ -360,7 +379,7 @@ void HumanController::Process() {
 
   if (actionMode == 0 && (!match->IsInSetPiece() || team->GetController()->GetPieceTaker() == player)) {
 
-    // todo: clean this up
+
 
     // what is the context: do we want defend buttons or pass/shot buttons?
     float possessionContext = possessionAmount - 1.0f;
@@ -368,7 +387,7 @@ void HumanController::Process() {
       possessionContext = 1.0f; // new (keeper was allowed doing slidings before free kick sometimes lol, sign something was wrong)
     } else {
       // in situations where we aren't the designated player, we sometimes still want to do ball stuff, because we could try to extend our leg to pass, for example
-      if (hid->GetButton(e_ButtonFunction_ShortPass)) possessionContext += 0.15f; // todo: bug: the logic of these weighings are based on the default 'pes' button settings.. need to take into account the defensive function of the buttons as well
+      if (hid->GetButton(e_ButtonFunction_ShortPass)) possessionContext += 0.15f;
       if (hid->GetButton(e_ButtonFunction_LongPass)) possessionContext += 0.15f;
       if (hid->GetButton(e_ButtonFunction_Shot)) possessionContext += 0.15f;
 
@@ -419,7 +438,7 @@ void HumanController::Process() {
       bool allowHighPass = true;
       bool allowShot = true;
 
-      if (team->GetController()->GetPieceTaker() == player && team->GetController()->GetSetPieceType() == e_SetPiece_ThrowIn) {
+      if (team->GetController()->GetPieceTaker() == player && team->GetController()->GetSetPieceType() == e_GameMode_ThrowIn) {
         allowHighPass = false;
         allowShot = false;
       }
@@ -497,7 +516,18 @@ void HumanController::Reset() {
 
 void HumanController::_GetHidInput(Vector3 &rawInputDirection, float &rawInputVelocityFloat) {
   rawInputDirection = hid->GetDirection();
-
+  if (CastPlayer()->GetPosition().coords[0] > pitchHalfW) {
+    rawInputDirection.coords[0] = std::min(0.0f, rawInputDirection.coords[0]);
+  }
+  if (CastPlayer()->GetPosition().coords[0] < -pitchHalfW) {
+    rawInputDirection.coords[0] = std::max(0.0f, rawInputDirection.coords[0]);
+  }
+  if (CastPlayer()->GetPosition().coords[1] > pitchHalfH) {
+    rawInputDirection.coords[1] = std::min(0.0f, rawInputDirection.coords[1]);
+  }
+  if (CastPlayer()->GetPosition().coords[1] < -pitchHalfH) {
+    rawInputDirection.coords[1] = std::max(0.0f, rawInputDirection.coords[1]);
+  }
   if (rawInputDirection.GetLength() < analogStickDeadzone) {
     rawInputDirection = CastPlayer()->GetDirectionVec();
     rawInputVelocityFloat = idleVelocity;
@@ -512,7 +542,7 @@ void HumanController::_GetHidInput(Vector3 &rawInputDirection, float &rawInputVe
 
   if (GetLastSwitchBias() > 0.0f) {
     float switchInfluence = 0.5f;
-    float switchBias = pow(GetLastSwitchBias(), 0.7f);
+    float switchBias = std::pow(GetLastSwitchBias(), 0.7f);
     Vector3 currentMovement = player->GetDirectionVec() * player->GetFloatVelocity();
     Vector3 manualMovement = rawInputDirection * rawInputVelocityFloat;
     Vector3 resultMovement = currentMovement * switchBias * switchInfluence +

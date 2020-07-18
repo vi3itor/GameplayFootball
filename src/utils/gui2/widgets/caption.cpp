@@ -1,13 +1,28 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "caption.hpp"
 
-#include "../windowmanager.hpp"
+#include <SDL2_rotozoom.h>
 
-#include "SDL/SDL_gfxBlitFunc.h"
-#include "SDL/SDL_rotozoom.h"
+#include <cmath>
+
+#include "../../../main.hpp"
+#include "../windowmanager.hpp"
 
 namespace blunted {
 
@@ -55,6 +70,9 @@ namespace blunted {
   }
 
   void Gui2Caption::Redraw() {
+    if (GetGameConfig().render_mode == e_Disabled) {
+      return;
+    }
     int x, y, w, h;
     windowManager->GetCoordinates(x_percent, y_percent, width_percent, height_percent, x, y, w, h);
     int x_margin = 0;
@@ -72,7 +90,7 @@ namespace blunted {
     int resW, resH;
     TTF_SizeUTF8(windowManager->GetStyle()->GetFont(e_TextType_DefaultOutline), caption.c_str(), &resW, &resH);
 
-    float zoomy;
+    float zoomy = 0.0f;
     renderedTextHeightPix = (float)textOutlineSurfTmp->h;
     zoomy = (float)(h - y_margin * 2) / renderedTextHeightPix;
     SDL_Surface *textOutlineSurf = zoomSurface(textOutlineSurfTmp, zoomy, zoomy, 1);
@@ -84,7 +102,7 @@ namespace blunted {
 
     image->DrawRectangle(0, 0, w, h, Vector3(0, 0, 0), 0);
 
-    if (resW * zoomy > int(image->GetSize().coords[0]) || resH * zoomy > int(image->GetSize().coords[1])) { // todo: also when smaller, maybe?
+    if (resW * zoomy > int(image->GetSize().coords[0]) || resH * zoomy > int(image->GetSize().coords[1])) {
       image->Resize(resW * zoomy, resH * zoomy);
       //printf("RESIZING\n");
       width_percent = windowManager->GetWidthPercent(resW * zoomy);
@@ -92,7 +110,6 @@ namespace blunted {
     }
 
     boost::intrusive_ptr < Resource<Surface> > surfaceRes = image->GetImage();
-    surfaceRes->resourceMutex.lock();
     SDL_Surface *surface = surfaceRes->GetResource()->GetData();
 
     Uint32 color32 = SDL_MapRGBA(surface->format, 0, 0, 0, 0);
@@ -104,15 +121,13 @@ namespace blunted {
     dstRect.y = 0;
     dstRect.w = 10000;
     dstRect.h = 10000;
-    SDL_gfxBlitRGBA(textOutlineSurf, NULL, surface, &dstRect);
-    dstRect.x = round(outlineWidth * zoomy);
-    dstRect.y = round(outlineWidth * zoomy);
-    SDL_gfxBlitRGBA(textSurf, NULL, surface, &dstRect);
+    SDL_BlitSurface(textOutlineSurf, NULL, surface, &dstRect);
+    dstRect.x = std::round(outlineWidth * zoomy);
+    dstRect.y = std::round(outlineWidth * zoomy);
+    SDL_BlitSurface(textSurf, NULL, surface, &dstRect);
     if (transparency > 0.0f) {
       sdl_setsurfacealpha(surface, (1.0f - transparency) * 255);
     }
-    surfaceRes->resourceMutex.unlock();
-
     SDL_FreeSurface(textOutlineSurf);
     SDL_FreeSurface(textSurf);
 
@@ -120,7 +135,9 @@ namespace blunted {
   }
 
   void Gui2Caption::SetCaption(const std::string &newCaption) {
-
+    if (GetGameConfig().render_mode == e_Disabled) {
+      return;
+    }
     std::string adaptedCaption = newCaption;
     if (adaptedCaption.compare("") == 0) adaptedCaption = " ";
     if (caption.compare(adaptedCaption) != 0) {
@@ -137,7 +154,7 @@ namespace blunted {
     int resW, resH;
     TTF_SizeUTF8(windowManager->GetStyle()->GetFont(e_TextType_DefaultOutline), caption.substr(0, subStrLength).c_str(), &resW, &resH);
 
-    float zoomy;
+    float zoomy = 0.0f;
     zoomy = (float)h / (float)renderedTextHeightPix;
 
     return windowManager->GetWidthPercent(resW * zoomy);

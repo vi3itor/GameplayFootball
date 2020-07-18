@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,11 +18,10 @@
 #ifndef _hpp_sdl_surface
 #define _hpp_sdl_surface
 
-#include "SDL/SDL_image.h"
-#include "SDL/SDL_endian.h"
+#include "wrap_SDL_endian.h"
+#include "wrap_SDL_surface.h"
 
-#include "SDL/sge.h"
-#include "SDL/SDL_gfxPrimitives.h"
+#include <wrap_SDL.h>
 
 namespace blunted {
 
@@ -40,13 +52,11 @@ namespace blunted {
   #endif
 
   SDL_Surface *CreateSDLSurface(int width, int height);
-  void sdl_putpixel(SDL_Surface *surface, int x, int y, Uint32 pixel);
   Uint32 sdl_getpixel(const SDL_Surface *surface, int x, int y);
-  void sdl_line(SDL_Surface *surface, int x1, int y1, int x2, int y2, Uint32 color);
-  void sdl_triangle_filled(SDL_Surface *surface, const Triangle &triangle, Uint8 r, Uint8 g, Uint8 b);
-  void sdl_rectangle_filled(SDL_Surface *surface, int x, int y, int width, int height, Uint32 color);
-  void sdl_alphablit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect);
-  void sdl_flipsurface(SDL_Surface *surface);
+  void sdl_line(SDL_Surface *surface, int x1, int y1, int x2, int y2,
+                Uint32 color);
+  void sdl_rectangle_filled(SDL_Surface *surface, int x, int y, int width,
+                            int height, Uint32 color);
 
   // only works on 32-bits surfaces
   // might have endian problems

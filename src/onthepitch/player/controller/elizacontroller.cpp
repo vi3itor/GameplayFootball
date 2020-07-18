@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,6 +18,8 @@
 #include "../../../main.hpp"
 
 #include "elizacontroller.hpp"
+
+#include <cmath>
 
 #include "../../AIsupport/mentalimage.hpp"
 #include "../../AIsupport/AIfunctions.hpp"
@@ -19,9 +34,7 @@
 #include "strategies/offtheball/goalie_default.hpp"
 #include "../playerofficial.hpp"
 
-#include "libs/fastapprox.h"
-
-ElizaController::ElizaController(Match *match) : PlayerController(match) {
+ElizaController::ElizaController(Match *match, bool lazyPlayer) : PlayerController(match), lazyPlayer(lazyPlayer) {
   lastDesiredDirection = Vector3(0);
   lastDesiredVelocity = 0;
 }
@@ -93,8 +106,7 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
 
 
   // stand still
-
-  else if (!match->IsInPlay()) { // this whole if/then/else structure is ugly and unclear
+  else if (!match->IsInPlay() || lazyPlayer) { // this whole if/then/else structure is ugly and unclear
 
     PlayerCommand command;
     command.desiredFunctionType = e_FunctionType_Movement;
@@ -123,7 +135,7 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
 
     PlayerCommand actionCommand;
 
-    if (team->GetController()->GetSetPieceType() == e_SetPiece_Penalty) {
+    if (team->GetController()->GetSetPieceType() == e_GameMode_Penalty) {
 
       actionCommand.desiredFunctionType = e_FunctionType_Shot;
       actionCommand.useDesiredMovement = false;
@@ -147,7 +159,7 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
       Vector3 desiredTargetPosition;
       bool doCommand = true;
 
-      if (team->GetController()->GetSetPieceType() == e_SetPiece_GoalKick) {
+      if (team->GetController()->GetSetPieceType() == e_GameMode_GoalKick) {
         if (random(0.0f, 1.0f) > 0.4f && team->GetHumanGamerCount() == 0) {
           actionCommand.desiredFunctionType = e_FunctionType_HighPass;
           desiredTargetPosition = Vector3((pitchHalfW * -team->GetSide()) * 0.2f, random(-pitchHalfH, pitchHalfH), 0.0f);
@@ -156,11 +168,11 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
           desiredTargetPosition = Vector3(player->GetPosition().coords[0] * 0.9f, random(-pitchHalfH, pitchHalfH), 0.0f);
         }
 
-      } else if (team->GetController()->GetSetPieceType() == e_SetPiece_KickOff) {
+      } else if (team->GetController()->GetSetPieceType() == e_GameMode_KickOff) {
         actionCommand.desiredFunctionType = e_FunctionType_ShortPass;
         desiredTargetPosition = player->GetPosition() + player->GetDirectionVec() * 1.0f;
 
-      } else if (team->GetController()->GetSetPieceType() == e_SetPiece_FreeKick) {
+      } else if (team->GetController()->GetSetPieceType() == e_GameMode_FreeKick) {
         if (random(0.0f, 1.0f) > 0.5f) {
           actionCommand.desiredFunctionType = e_FunctionType_HighPass;
           desiredTargetPosition = Vector3(pitchHalfW * -team->GetSide(), random(-10.0f, 10.0f), 0.0f);
@@ -169,7 +181,7 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
           desiredTargetPosition = player->GetPosition() + Vector3(-team->GetSide() * 10.0f, random(-10.0f, 10.0f), 0.0f);
         }
 
-      } else if (team->GetController()->GetSetPieceType() == e_SetPiece_Corner) {
+      } else if (team->GetController()->GetSetPieceType() == e_GameMode_Corner) {
         if (random(0.0f, 1.0f) > 0.3f) {
           actionCommand.desiredFunctionType = e_FunctionType_HighPass;
           desiredTargetPosition = Vector3((pitchHalfW * -team->GetSide()) * (0.99f - random(0.0f, 0.12f)), random(-10.0f, 10.0f), 0.0f);
@@ -178,7 +190,7 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
           desiredTargetPosition = Vector3((pitchHalfW * -team->GetSide()) * 0.8f, player->GetPosition().coords[1] * 0.8f, 0.0f);
         }
 
-      } else if (team->GetController()->GetSetPieceType() == e_SetPiece_ThrowIn) {
+      } else if (team->GetController()->GetSetPieceType() == e_GameMode_ThrowIn) {
         actionCommand.desiredFunctionType = e_FunctionType_ShortPass;
         desiredTargetPosition = player->GetPosition(); // closest to player
 
@@ -229,7 +241,7 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
       command.useDesiredLookAt = true;
       command.desiredLookAt = player->GetPosition() + command.desiredDirection * 10.0f;
       commandQueue.push_back(command);
-      if (team->GetController()->GetSetPieceType() == e_SetPiece_ThrowIn) {
+      if (team->GetController()->GetSetPieceType() == e_GameMode_ThrowIn) {
         //printf("elizacontroller throw in doCommand (green pilon == target)\n");
         //SetGreenDebugPilon(command.desiredLookAt);
       }
@@ -265,7 +277,7 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
     if (CastPlayer()->GetTimeNeededToGetToBall_ms() < 1000) {
       GetOnTheBallCommands(commandQueue, rawInputDirection, rawInputVelocityFloat);
     }
-    extraHaste = false; // todo: extra haste when touch anim is queued?
+    extraHaste = false;
   }
 
   else if (match->IsInPlay() && !match->IsInSetPiece() && CastPlayer()->GetFormationEntry().role == e_PlayerRole_GK) {
@@ -426,14 +438,6 @@ void ElizaController::LoadStrategies() {
   goalieStrategy = new GoalieDefaultStrategy(this);
 }
 
-bool PreRatingSortFunc(const PreRating &a, const PreRating &b) {
-  return a.totalRating > b.totalRating;
-}
-
-bool SortPlayersDeepestFirst(Player *a, Player *b) {
-  return a->GetPosition().coords[0] * a->GetTeam()->GetSide() < b->GetPosition().coords[0] * b->GetTeam()->GetSide();
-}
-
 float ElizaController::GetLazyVelocity(float desiredVelocityFloat) {
 
   // input is unclamped! use large values (less lazy, apparently we are more off-position)
@@ -465,133 +469,12 @@ float ElizaController::GetLazyVelocity(float desiredVelocityFloat) {
   // does not heed dribble clamp above, as to simulate players having to stop to catch their breath
   float breathLeftFactor = 1.0f - NormalizedClamp(CastPlayer()->GetAverageVelocity(10), idleVelocity, sprintVelocity);
   float workRate = CastPlayer()->GetStat("mental_workrate");
-  breathLeftFactor = pow(breathLeftFactor, 0.8f - workRate * 0.2f);
+  breathLeftFactor = std::pow(breathLeftFactor, 0.8f - workRate * 0.2f);
   breathLeftFactor = clamp(breathLeftFactor * 1.2f, 0.0f, 1.0f); // make sure beginning of sprint is full speed
   breathLeftFactor = breathLeftFactor * lazyFactor + 1.0f * (1.0f - lazyFactor); // sometimes, we really need to force it
   resultingVelocityFloat = std::min(resultingVelocityFloat, sprintVelocity * breathLeftFactor);
 
   return resultingVelocityFloat;
-}
-
-Vector3 ElizaController::GetSupportPosition(const MentalImage *mentalImage, const Vector3 &basePosition) {
-
-  float offenseWeight = 0.8f + (AI_GetMindSet(CastPlayer()->GetDynamicFormationEntry().role)) * clamp((GetFadingTeamPossessionAmount() - 0.5f) * 2.0f, 0.0f, 1.0f);
-  float distanceWeight = 1.0f;
-  float passWeight = 0.8f;
-  float movementWeight = 1.5f;
-  float formationWeight = 1.6f + clamp((CastPlayer()->GetPosition() - mentalImage->GetBallPrediction(100).Get2D()).GetLength() / 30.0f, 0.0, 1.0f);
-  float offsideWeight = 10.0f;
-
-  Vector3 playerPos = player->GetPosition() + player->GetMovement() * 0.1f; // + physics slowness
-
-
-  // get closest opponents
-
-  std::vector<Player*> opponents;
-  std::vector<PlayerImage> opponentImages;
-  AI_GetClosestPlayers(match->GetTeam(abs(team->GetID() - 1)), playerPos, false, opponents, 4);
-  for (unsigned int i = 0; i < opponents.size(); i++) {
-    PlayerImage oppImage = mentalImage->GetPlayerImage(opponents.at(i)->GetID());
-    oppImage.position += oppImage.movement * 0.15f;
-    opponentImages.push_back(oppImage);
-  }
-
-
-  // add candidate positions
-
-  std::vector<Vector3> candidatePositions;
-  candidatePositions.push_back(playerPos);
-  float step = (2 * pi) / 12.0f;
-  Vector3 pos;
-  for (float rad = 0; rad < 2 * pi; rad += step) {
-    pos.coords[0] = cos(rad);
-    pos.coords[1] = sin(rad);
-    candidatePositions.push_back(playerPos + pos * dribbleVelocity);
-    candidatePositions.push_back(playerPos + pos * walkVelocity);
-    candidatePositions.push_back(playerPos + pos * sprintVelocity);
-  }
-
-
-  // rate candidates
-
-  Vector3 goalPos = Vector3(-team->GetSide() * pitchHalfW, playerPos.coords[1] * 0.8f, 0); // y element is because goal is wider than 0
-  float goalDistance = fabs((goalPos - playerPos).GetLength() - 5.0f); // and not all too close
-  float ballDistance = (playerPos - mentalImage->GetBallPrediction(100).Get2D()).GetLength();
-  float formationDistance = (basePosition - playerPos).GetLength();
-  float offside = AI_GetOffsideLine(match, mentalImage, abs(team->GetID() - 1));
-
-  float passRating; // are opponents blocking pass space to this position?
-
-  float bestRating = 0;
-  int bestCandidate = 0;
-
-  std::vector<PreRating> preRatings;
-
-  for (unsigned int i = 0; i < candidatePositions.size(); i++) {
-
-    if (fabs(candidatePositions.at(i).coords[0]) < pitchHalfW && fabs(candidatePositions.at(i).coords[1]) < pitchHalfH) {
-      PreRating preRating;
-      preRating.candidateID = i;
-
-      // offense rating
-      preRating.offenseRating = clamp((goalDistance - fabs((goalPos - candidatePositions.at(i)).GetLength() - 5.0)) / sprintVelocity * 0.5 + 0.5, 0.0, 1.0);
-
-      // distance rating
-      float candidateBallDistance = (candidatePositions.at(i) - mentalImage->GetBallPrediction(100).Get2D()).GetLength();
-      float desiredBallDistance = 10.0f;
-      // too close is bad as well..
-      if (candidateBallDistance < desiredBallDistance) candidateBallDistance = desiredBallDistance + fabs(candidateBallDistance - desiredBallDistance);
-      float candidateBallVsBallDistance = (ballDistance - candidateBallDistance);
-
-      preRating.distanceRating = clamp((candidateBallVsBallDistance / sprintVelocity) * 0.5f + 0.5f, 0.0f, 1.0f);
-
-      // movement rating
-      preRating.movementRating = 1.0 - clamp((player->GetMovement() - (candidatePositions.at(i) - playerPos)).GetLength() / (2 * sprintVelocity), 0.0, 1.0);
-
-      // formation rating
-      preRating.formationRating = clamp(((formationDistance - (basePosition - candidatePositions.at(i)).GetLength()) / sprintVelocity) * 0.5 + 0.5, 0.0, 1.0);
-
-      // offside rating
-      bool isOffside = false;
-      if (candidatePositions.at(i).coords[0] * -team->GetSide() >= offside * -team->GetSide()) isOffside = true;
-      preRating.offsideRating = isOffside ? 0.0 : 1.0;
-
-      preRating.totalRating = preRating.offenseRating * offenseWeight + preRating.distanceRating * distanceWeight + preRating.movementRating * movementWeight + preRating.formationRating * formationWeight + preRating.offsideRating * offsideWeight;
-
-      // small bonus for 'current position'
-      if (i == 0) preRating.totalRating += 0.1f;
-
-      preRatings.push_back(preRating);
-    }
-  }
-
-  std::sort(preRatings.begin(), preRatings.end(), PreRatingSortFunc);
-
-  for (unsigned int i = 0; i < preRatings.size() / 3; i++) {
-
-    const PreRating &preRating = preRatings.at(i);
-    int candidateID = preRating.candidateID;
-
-    // pass rating
-    passRating = 1.0;
-    Vector3 checkPosition = candidatePositions.at(candidateID) + (mentalImage->GetBallPrediction(240).Get2D() - candidatePositions.at(candidateID)).GetNormalized(0) * 2.0f;
-    for (unsigned int o = 0; o < opponentImages.size(); o++) {
-      float oppDist = pow(clamp((opponentImages.at(o).position - checkPosition).GetLength() / 8.0f, 0.0f, 1.0f), 1.2f); // 0 .. 1 == worst, best
-      if (oppDist < passRating) passRating = oppDist;
-    }
-
-    // total rating
-    float totalRating = preRating.totalRating + passRating * passWeight;
-    if (totalRating > bestRating) {
-      bestRating = totalRating;
-      bestCandidate = candidateID;
-    }
-
-  }
-
-  Vector3 result = candidatePositions.at(bestCandidate);
-
-  return result;
 }
 
 Vector3 ElizaController::GetSupportPosition_ForceField(const MentalImage *mentalImage, const Vector3 &basePosition, bool makeRun) {
@@ -672,7 +555,7 @@ Vector3 ElizaController::GetSupportPosition_ForceField(const MentalImage *mental
       float amount = 22.0f;
       float laneY = -signSide(mainManPos.coords[1]) * 8.0f;
       amount *= curve(1.0f - NormalizedClamp(fabs(laneY - currentPos.coords[1]), 0.0f, 30.0f), 1.0f);
-      float delta = -team->GetSide() * pow(dynamicMindSet, 1.5f) * amount;
+      float delta = -team->GetSide() * std::pow(dynamicMindSet, 1.5f) * amount;
       spot.origin.coords[0] += delta;
     }
 
@@ -805,7 +688,7 @@ void ElizaController::GetOnTheBallCommands(std::vector<PlayerCommand> &commandQu
 
   // DECIDE WHAT TO DO
 
-  float longPossessionFactor = fastpow(NormalizedClamp(CastPlayer()->GetPossessionDuration_ms(), 0, 5000), 2.0f);
+  float longPossessionFactor = pow(NormalizedClamp(CastPlayer()->GetPossessionDuration_ms(), 0, 5000), 2.0f);
 
   // first selection
   float forwardSpaceWeight = 0.4f;
@@ -816,7 +699,11 @@ void ElizaController::GetOnTheBallCommands(std::vector<PlayerCommand> &commandQu
   float tacticalImprovementThreshold = 0.06f * (1.0f - AI_GetMindSet(CastPlayer()->GetDynamicFormationEntry().role)); // only go on with pass selection if recipient has this much tactical advantage over current player
 
   // second selection
-  float tacticalDiffWeight = 1.0f + pow(AI_GetMindSet(CastPlayer()->GetDynamicFormationEntry().role), 2.0f) * 10.0f;
+  float tacticalDiffWeight =
+      1.0f +
+      std::pow(AI_GetMindSet(CastPlayer()->GetDynamicFormationEntry().role),
+               2.0f) *
+          10.0f;
   float passWeight = 1.0f;
   float passMinimum = 0.2f * (1.0f - AI_GetMindSet(CastPlayer()->GetDynamicFormationEntry().role)) - longPossessionFactor * 0.1f;
 
@@ -839,10 +726,10 @@ void ElizaController::GetOnTheBallCommands(std::vector<PlayerCommand> &commandQu
 
   struct MateRating {
     Player *player;
-    float tacticalRating;
-    float tacticalDiffRating;
-    float passRating;
-    float proximityRating;
+    float tacticalRating = 0.0f;
+    float tacticalDiffRating = 0.0f;
+    float passRating = 0.0f;
+    float proximityRating = 0.0f;
     e_FunctionType passType;
   };
 
@@ -937,7 +824,7 @@ void ElizaController::GetOnTheBallCommands(std::vector<PlayerCommand> &commandQu
     if (odds1 > odds) { odds = odds1; y = -3.5f; }
     if (odds3 > odds) { odds = odds3; y =  3.5f; }
 
-    odds = pow(odds, 0.5f);
+    odds = std::pow(odds, 0.5f);
     if (Verbose()) printf("ODDS: %f\n", odds);
 
     if (odds + random(0.0f, 0.5f) > 0.5f) {
@@ -1029,8 +916,8 @@ float ElizaController::_GetPassingOdds(const Vector3 &target, e_FunctionType pas
   float danger = 0.0f;
   for (unsigned int opp = 0; opp < opponentPlayerImages.size(); opp++) {
     Vector3 oppPos = opponentPlayerImages.at(opp).position + opponentPlayerImages.at(opp).movement * 0.2f; // + time needed to brake
-    float u; // % of line opp is closest to (0 .. 1)
-    float oppDistance;
+    float u = 0.0f; // % of line opp is closest to (0 .. 1)
+    float oppDistance = 0.0f;
     oppDistance = line.GetDistanceToPoint(oppPos, u);
 
     if (u >= 0.0f && u <= 1.0f + 0.2f) { // opp is dangerous in the first place

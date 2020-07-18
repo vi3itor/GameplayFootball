@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /********************************************************************
  ********************************************************************
  **
@@ -44,37 +57,6 @@ int** array_to_matrix(int* m, int rows, int cols) {
       r[i][j] = m[i*cols+j];
   }
   return r;
-}
-
-void hungarian_print_matrix(int** C, int rows, int cols) {
-  int i,j;
-  fprintf(stderr , "\n");
-  for(i=0; i<rows; i++) {
-    fprintf(stderr, " [");
-    for(j=0; j<cols; j++) {
-      fprintf(stderr, "%5d ",C[i][j]);
-    }
-    fprintf(stderr, "]\n");
-  }
-  fprintf(stderr, "\n");
-}
-
-void hungarian_print_assignment(hungarian_problem_t* p) {
-  hungarian_print_matrix(p->assignment, p->num_rows, p->num_cols) ;
-}
-
-void hungarian_print_costmatrix(hungarian_problem_t* p) {
-  hungarian_print_matrix(p->cost, p->num_rows, p->num_cols) ;
-}
-
-void hungarian_print_status(hungarian_problem_t* p) {
-  
-  fprintf(stderr,"cost:\n");
-  hungarian_print_costmatrix(p);
-
-  fprintf(stderr,"assignment:\n");
-  hungarian_print_assignment(p);
-  
 }
 
 int hungarian_imax(int a, int b) {
@@ -380,19 +362,19 @@ int hungarian_solve(hungarian_problem_t* p)
   for (k=0;k<m;k++)
     for (l=0;l<n;l++)
       if (p->cost[k][l]<row_dec[k]-col_inc[l])
-	exit(0);
+	return -1;
   for (k=0;k<m;k++)
     {
       l=col_mate[k];
       if (l<0 || p->cost[k][l]!=row_dec[k]-col_inc[l])
-	exit(0);
+	return -1;
     }
   k=0;
   for (l=0;l<n;l++)
     if (col_inc[l])
       k++;
   if (k>m)
-    exit(0);
+    return -1;
   // End doublecheck the solution 23
   // End Hungarian algorithm 18
 

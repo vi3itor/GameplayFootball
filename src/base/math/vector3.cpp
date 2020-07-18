@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -6,11 +19,9 @@
 
 #include "quaternion.hpp"
 
-#include "libs/fastapprox.h"
-
 #include <cmath>
 
-#include "base/log.hpp"
+#include "../../base/log.hpp"
 
 namespace blunted {
 
@@ -50,6 +61,35 @@ namespace blunted {
     coords[2] = vec.coords[2];
   }
 
+  float Vector3::GetEnvCoord(int index) const {
+    switch (index) {
+      case 0:
+        return coords[0];
+      case 1:
+        return coords[1];
+      case 2:
+        return coords[2];
+      default:
+        Log(e_FatalError, "Vector", "GetEnvCoord", "Invalid coordinate");
+    }
+    return 0;
+  }
+
+  void Vector3::SetEnvCoord(int index, float value) {
+    switch (index) {
+      case 0:
+        coords[0] = value;
+        break;
+      case 1:
+        coords[1] = value;
+        break;
+      case 2:
+        coords[2] = value;
+        break;
+      default:
+        Log(e_FatalError, "Vector", "GetEnvCoord", "Invalid coordinate");
+    }
+  }
 
   // ----- operator overloading
 
@@ -133,24 +173,15 @@ namespace blunted {
       this->coords[1] = ifNull.coords[1];
       this->coords[2] = ifNull.coords[2];
     } else {
-      real f = 1.0f / sqrt(GetDotProduct(*this));
-
-      coords[0] *= f;
-      coords[1] *= f;
-      coords[2] *= f;
+      real f = 1.0f / std::sqrt(GetDotProduct(*this));
+      this->coords[0] *= f;
+      this->coords[1] *= f;
+      this->coords[2] *= f;
     }
   }
 
   void Vector3::Normalize() {
-    if (fabs(this->coords[0]) < 0.000001f && fabs(this->coords[1]) < 0.000001f && fabs(this->coords[2]) < 0.000001f) {
-      Log(e_Warning, "Vector3", "Normalize", "Trying to normalize 0-vector");
-      /* handy debug tool
-      int *foo = (int*)-1; // make a bad pointer
-      printf("%d\n", *foo); // causes segfault
-      */
-    }
-    real f = 1.0f / sqrt(GetDotProduct(*this));
-
+    real f = 1.0f / std::sqrt(GetDotProduct(*this));
     coords[0] *= f;
     coords[1] *= f;
     coords[2] *= f;
@@ -158,7 +189,7 @@ namespace blunted {
 
   void Vector3::NormalizeTo(float length) {
     if (fabs(this->coords[0]) < 0.000001f && fabs(this->coords[1]) < 0.000001f && fabs(this->coords[2]) < 0.000001f) Log(e_Warning, "Vector3", "NormalizeTo", "Trying to normalize 0-vector");
-    real f = length / sqrt(GetDotProduct(*this));
+    real f = length / std::sqrt(GetDotProduct(*this));
 
     coords[0] *= f;
     coords[1] *= f;
@@ -179,13 +210,6 @@ namespace blunted {
   }
 
   Vector3 Vector3::GetNormalized() const {
-    if (fabs(this->coords[0]) < 0.000001f && fabs(this->coords[1]) < 0.000001f && fabs(this->coords[2]) < 0.000001f) {
-      Log(e_Warning, "Vector3", "GetNormalized", "Trying to normalize 0-vector");
-      /* handy debug tool
-      int *foo = (int*)-1; // make a bad pointer
-      printf("%d\n", *foo); // causes segfault
-      */
-    }
     Vector3 tmp(*this);
     tmp.Normalize();
     return tmp;
@@ -212,7 +236,8 @@ namespace blunted {
     // premature optimization ;)
     if (v3[0] == 0.0f && v3[1] == 0.0f && v3[2] == 0.0f) return 0.0f;
 
-    float length = sqrt(pow(v3[0], 2) + pow(v3[1], 2) + pow(v3[2], 2));
+    float length =
+        sqrt(std::pow(v3[0], 2) + std::pow(v3[1], 2) + std::pow(v3[2], 2));
 
     if (length < 0.000001) length = 0;
     return length;
@@ -269,6 +294,12 @@ namespace blunted {
 
   void Vector3::Print() const {
     printf("%f, %f, %f\n", coords[0], coords[1], coords[2]);
+  }
+
+  std::ostream& operator<<(std::ostream& os, const Vector3& v)
+  {
+    os << v.coords[0] << " " << v.coords[1] << " " << v.coords[2];
+    return os;
   }
 
 }

@@ -1,45 +1,32 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "command.hpp"
+#include "backtrace.h"
 
 namespace blunted {
 
-  Command::Command(const std::string &name) : handled(false) {
-    this->name.SetData(name);
+  Command::Command(const std::string &name) : name(name) {
   }
 
   Command::~Command() {
   }
 
-  bool Command::IsReady() {
-    boost::mutex::scoped_lock lock(mutex);
-    return handled;
-  }
-
-  void Command::Reset() {
-    boost::mutex::scoped_lock lock(mutex);
-    handled = false;
-  }
-
   bool Command::Handle(void *caller) {
-    bool result = Execute(caller);
-
-    boost::mutex::scoped_lock lock(mutex);
-    handled = true;
-    //lock.unlock(); // http://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html
-    // edit: disabled, just to be sure no obscure bugs occur.
-    processed.notify_one();
-
-    return result;
+    return Execute(caller);
   }
-
-  void Command::Wait() {
-    boost::mutex::scoped_lock lock(mutex);
-    if (!handled) {
-      processed.wait(lock);
-    }
-  }
-
 }

@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -12,11 +25,11 @@
 
 #include "AIsupport/AIfunctions.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
+#include "../managers/resourcemanagerpool.hpp"
 
 Team::Team(int id, Match *match, TeamData *teamData) : id(id), match(match), teamData(teamData) {
   assert(id == 0 || id == 1);
-  assert(teamData->GetPlayerNum() >= playerNum); // does team have enough players?
+  //assert(teamData->GetPlayerNum() >= playerNum); // does team have enough players?
 
   teamNode = boost::intrusive_ptr<Node>(new Node("team node #" + int_to_str(id)));
   teamNode->SetLocalMode(e_LocalMode_Absolute);
@@ -59,7 +72,9 @@ void Team::Exit() {
   match->GetDynamicNode()->DeleteNode(teamNode);
 }
 
-void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3, Vector3> &colorCoords) {
+void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode,
+                       boost::intrusive_ptr<Node> fullbody2Node,
+                       std::map<Vector3, Vector3> &colorCoords) {
 
   // first, load 1 instance of a player
 
@@ -70,8 +85,6 @@ void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3
   playerNode->SetName("player");
   playerNode->SetLocalMode(e_LocalMode_Absolute);
 
-  activePlayerCount = playerNum;
-
   Log(e_Notice, "Team", "Team", "Creating players");
 
   // load all players in the team, even the players who sit on the bench. aww.
@@ -80,18 +93,22 @@ void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3
     Player *player = new Player(this, playerData);
     players.push_back(player);
 
-    if (i < activePlayerCount) {
+    if (i < playerNum) {
       // activate playerCount players (the starting eleven, usually)
       std::string kitFilename;
       //printf("%i player id\n", player->GetID());
-      if (GetFormationEntry(player->GetID()).role != e_PlayerRole_GK) {
+      auto formation = GetFormationEntry(player->GetID());
+      if (formation.role != e_PlayerRole_GK) {
         kitFilename = GetTeamData()->GetKitUrl() + "_kit_0" + int_to_str(GetMenuTask()->GetTeamKitNum(GetID())) + ".png";
         if (!boost::filesystem::exists(kitFilename)) kitFilename = (GetID() == 0) ? "media/textures/almost_white.png" : "media/textures/almost_black.png";
       } else {
         kitFilename = "media/objects/players/textures/goalie_kit.png";
       }
-      kit = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(kitFilename);
-      player->Activate(playerNode, fullbodyNode, colorCoords, kit, match->GetAnimCollection());
+      kit = ResourceManagerPool::getSurfaceManager()->Fetch(kitFilename);
+      player->Activate(playerNode,
+                       playerData->GetModelId() ? fullbody2Node : fullbodyNode,
+                       colorCoords, kit,
+                       match->GetAnimCollection(), formation.lazy);
     }
   }
 
@@ -100,14 +117,15 @@ void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3
 }
 
 signed int Team::GetSide() {
-  signed int side;
+  signed int side = 0;
   if (id == 0) side = -1;
   if (id == 1) side = 1;
 
   // -1 == left, 1 == right
   e_MatchPhase phase = match->GetMatchPhase();
-  if (phase == e_MatchPhase_2ndHalf || phase == e_MatchPhase_2ndExtraTime) side *= -1;
-
+  if (phase == e_MatchPhase_2ndHalf || phase == e_MatchPhase_2ndExtraTime) {
+    side *= -1;
+  }
   return side;
 }
 
@@ -119,17 +137,6 @@ Player *Team::GetPlayer(int player_id) {
   }
 
   // id not found
-  return 0;
-}
-
-PlayerData *Team::GetPlayerData(int playerID) {
-  for (int i = 0; i < (signed int)players.size(); i++) {
-    if (players.at(i)->GetID() == playerID) {
-      return teamData->GetPlayerData(i);
-    }
-  }
-
-  assert(1 == 2);
   return 0;
 }
 
@@ -154,9 +161,17 @@ void Team::SetFormationEntry(int playerID, FormationEntry entry) {
 }
 
 void Team::GetActivePlayers(std::vector<Player*> &activePlayers) {
-  for (int i = 0; i < (signed int)players.size(); i++) {
-    if (players.at(i)->IsActive()) activePlayers.push_back(players.at(i));
+  for (auto player : players) {
+    if (player->IsActive()) activePlayers.push_back(player);
   }
+}
+
+int Team::GetActivePlayersCount() const {
+  int count = 0;
+  for (auto player : players) {
+    if (player->IsActive()) count++;
+  }
+  return count;
 }
 
 void Team::AddHumanGamer(IHIDevice *hid, e_PlayerColor color) {
@@ -190,6 +205,16 @@ bool Team::IsHumanControlled(int playerID) {
     if (humanGamers.at(h)->GetSelectedPlayerID() == playerID) return true;
   }
   return false;
+}
+
+int Team::HumanControlledToBallDistance() {
+  int timeToBall = 10000;
+  for (auto human : humanGamers) {
+    if (human->GetSelectedPlayer()) {
+      timeToBall = std::min(timeToBall, human->GetSelectedPlayer()->GetTimeNeededToGetToBall_ms());
+    }
+  }
+  return timeToBall;
 }
 
 bool Team::HasPossession() const {
@@ -520,14 +545,14 @@ void Team::UpdateSwitch() {
 
   // autoswitch on proximity
 
-/* recently disabled
   if (match->IsInPlay() && humanGamers.size() > 0) {
     if (!IsHumanControlled(designatedTeamPossessionPlayer->GetID()) &&
-        designatedTeamPossessionPlayer->GetTimeNeededToGetToBall_ms() < 2000 && // proximity
-        designatedTeamPossessionPlayer->GetTimeNeededToGetToBall_ms() <= this->GetTimeNeededToGetToBall_ms() && // sometimes, the designated team possession player is not the player quickest to ball. don't autoswitch then
-        GetTeamPossessionAmount() > 1.3f) SelectPlayer(designatedTeamPossessionPlayer);
+        3 * designatedTeamPossessionPlayer->GetTimeNeededToGetToBall_ms() < HumanControlledToBallDistance() &&
+        designatedTeamPossessionPlayer->GetFormationEntry().role != e_PlayerRole_GK) {
+      SelectPlayer(designatedTeamPossessionPlayer);
+    }
   }
-*/
+
 
   //if (GetID() == 0) printf("teamposs %f\n", GetTeamPossessionAmount());
 
@@ -561,7 +586,7 @@ void Team::SetKitNumber(int num) {
   if (!boost::filesystem::exists(kitFilename)) kitFilename = GetID() == 0 ? "media/textures/white.png" : "media/textures/black.png";
 
   // new kits on the block!
-  boost::intrusive_ptr < Resource<Surface> > newKit = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(kitFilename);
+  boost::intrusive_ptr < Resource<Surface> > newKit = ResourceManagerPool::getSurfaceManager()->Fetch(kitFilename);
 
   for (unsigned int i = 0; i < players.size(); i++) {
     if (players.at(i)->IsActive()) {

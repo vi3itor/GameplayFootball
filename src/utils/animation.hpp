@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,22 +18,40 @@
 #ifndef _HPP_ANIMATION
 #define _HPP_ANIMATION
 
-#include "defines.hpp"
+#include "../defines.hpp"
 
-#include "scene/scene3d/node.hpp"
+#include "../scene/scene3d/node.hpp"
 
 #include "animationextensions/animationextension.hpp"
 
-#include "utils/xmlloader.hpp"
+#include "../utils/xmlloader.hpp"
 
 namespace blunted {
 
-  struct CompareCharacterStrings
-  {
-    bool operator()(const char *a, const char *b) const {
-      return std::strcmp(a, b) < 0;
-    }
-  };
+enum e_DefString {
+  e_DefString_Empty = 0,
+  e_DefString_OutgoingSpecialState = 1,
+  e_DefString_IncomingSpecialState = 2,
+  e_DefString_SpecialVar1 = 3,
+  e_DefString_SpecialVar2 = 4,
+  e_DefString_Type = 5,
+  e_DefString_Trap = 6,
+  e_DefString_Deflect = 7,
+  e_DefString_Interfere = 8,
+  e_DefString_Trip = 9,
+  e_DefString_ShortPass = 10,
+  e_DefString_LongPass = 11,
+  e_DefString_Shot = 12,
+  e_DefString_Sliding = 13,
+  e_DefString_Movement = 14,
+  e_DefString_Special = 15,
+  e_DefString_BallControl = 16,
+  e_DefString_HighPass = 17,
+  e_DefString_Catch = 18,
+  e_DefString_OutgoingRetainState = 19,
+  e_DefString_IncomingRetainState = 20,
+  e_DefString_Size = 21
+};
 
   struct KeyFrame {
     Quaternion orientation;
@@ -29,8 +60,8 @@ namespace blunted {
 
   struct WeighedKey {
     KeyFrame keyFrame;
-    float influence; // [0..1]
-    int frame;
+    float influence = 0.0f; // [0..1]
+    int frame = 0;
   };
 
   struct NodeAnimation {
@@ -48,9 +79,9 @@ namespace blunted {
       bias = 0.0f;
       isRelative = false;
     }
-    float bias; // 0 .. 1
+    float bias = 0.0f; // 0 .. 1
     Quaternion orientation;
-    bool isRelative;
+    bool isRelative = false;
   };
 
   static std::map < std::string, BiasedOffset > emptyOffsets;
@@ -59,7 +90,7 @@ namespace blunted {
     std::string nodeName;
     Vector3 position;
     Quaternion orientation;
-    int timeDiff_ms;
+    int timeDiff_ms = 0;
   };
 
   typedef std::vector<MovementHistoryEntry> MovementHistory;
@@ -83,20 +114,30 @@ namespace blunted {
       int GetEffectiveFrameCount() const { return GetFrameCount() - 1; }
 
       bool GetKeyFrame(std::string nodeName, int frame, Quaternion &orientation, Vector3 &position, bool getOrientation = true, bool getPosition = true) const;
-      void SetKeyFrame(std::string nodeName, int frame, const Quaternion &orientation, const Vector3 &position = Vector3(0, 0, 0));
-      void DeleteKeyFrame(std::string nodeName, int frame);
-      void GetInterpolatedValues(const std::map<int, KeyFrame> &animation, int frame, Quaternion &orientation, Vector3 &position, bool getOrientation = true, bool getPosition = true) const;
+      void SetKeyFrame(std::string nodeName, int frame,
+                       const Quaternion &orientation,
+                       const Vector3 &position = Vector3(0, 0, 0));
+      void GetInterpolatedValues(const std::map<int, KeyFrame> &animation,
+                                 int frame, Quaternion &orientation,
+                                 Vector3 &position, bool getOrientation = true,
+                                 bool getPosition = true) const;
       void ConvertToStartFacingForwardIfIdle();
-      void Invert();
-      void Apply(const std::map < const std::string, boost::intrusive_ptr<Node> > nodeMap, int frame, int timeOffset_ms = 0, bool smooth = true, float smoothFactor = 1.0f, /*const boost::shared_ptr<Animation> previousAnimation, int smoothFrames, */const Vector3 &basePos = Vector3(0), radian baseRot = 0, std::map < std::string, BiasedOffset > &offsets = emptyOffsets, MovementHistory *movementHistory = 0, int timeDiff_ms = 10, bool noPos = false, bool updateSpatial = true);
-      void Shift(int fromFrame, int offset);
+      void Apply(const std::map<const std::string, boost::intrusive_ptr<Node> >
+                     nodeMap,
+                 int frame, int timeOffset_ms = 0, bool smooth = true,
+                 float smoothFactor = 1.0f,
+                 /*const boost::shared_ptr<Animation> previousAnimation, int
+                    smoothFrames, */
+                 const Vector3 &basePos = Vector3(0), radian baseRot = 0,
+                 std::map<std::string, BiasedOffset> &offsets = emptyOffsets,
+                 MovementHistory *movementHistory = 0, int timeDiff_ms = 10,
+                 bool noPos = false, bool updateSpatial = true);
 
       // returns end position - start position
       Vector3 GetTranslation() const;
       Vector3 GetIncomingMovement() const;
       float GetIncomingVelocity() const;
       Vector3 GetOutgoingMovement() const;
-      Vector3 GetRangedOutgoingMovement() const;
       Vector3 GetOutgoingDirection() const;
       Vector3 GetIncomingBodyDirection() const;
       Vector3 GetOutgoingBodyDirection() const;
@@ -110,7 +151,6 @@ namespace blunted {
       void Reset();
       void LoadData(std::vector < std::vector<std::string> > &file);
       void Load(const std::string &filename);
-      void Save(const std::string &filename);
       void Mirror();
       std::string GetName() const;
       void SetName(const std::string &name) { this->name = name; }
@@ -120,55 +160,54 @@ namespace blunted {
 
       const std::string &GetVariable(const char *name) const;
       void SetVariable(const std::string &name, const std::string &value);
-      const std::string &GetAnimType() const { return cache_AnimType; }
-      boost::shared_ptr<XMLTree> GetCustomData();
+      e_DefString GetAnimType() const { return cache_AnimType; }
+      const std::string &GetAnimTypeStr() const { return cache_AnimType_str; }
 
-      // quick edit hax
-      void Hax();
-
-      std::vector<NodeAnimation*> &GetNodeAnimations() { return nodeAnimations; }
-      std::map < std::string, boost::shared_ptr<AnimationExtension> > &GetExtensions() { return extensions; }
+      std::vector<NodeAnimation *> &GetNodeAnimations() {
+        return nodeAnimations;
+      }
 
     protected:
       std::vector<NodeAnimation*> nodeAnimations;
-      int frameCount;
+      int frameCount = 0;
       std::string name;
 
       std::map < std::string, boost::shared_ptr<AnimationExtension> > extensions;
 
       boost::shared_ptr<XMLTree> customData;
-      std::map<const char*, std::string, CompareCharacterStrings> variableCache;
+      std::map<std::string, std::string> variableCache;
 
       // this hack only applies to humanoids
       // it's which foot is moving first in this anim
       e_Foot currentFoot;
 
-      mutable bool cache_translation_dirty;
+      mutable bool cache_translation_dirty = false;
       mutable Vector3 cache_translation;
-      mutable bool cache_incomingMovement_dirty;
+      mutable bool cache_incomingMovement_dirty = false;
       mutable Vector3 cache_incomingMovement;
-      mutable bool cache_incomingVelocity_dirty;
-      mutable float cache_incomingVelocity;
-      mutable bool cache_outgoingDirection_dirty;
+      mutable bool cache_incomingVelocity_dirty = false;
+      mutable float cache_incomingVelocity = 0.0f;
+      mutable bool cache_outgoingDirection_dirty = false;
       mutable Vector3 cache_outgoingDirection;
-      mutable bool cache_outgoingMovement_dirty;
+      mutable bool cache_outgoingMovement_dirty = false;
       mutable Vector3 cache_outgoingMovement;
-      mutable bool cache_rangedOutgoingMovement_dirty;
+      mutable bool cache_rangedOutgoingMovement_dirty = false;
       mutable Vector3 cache_rangedOutgoingMovement;
-      mutable bool cache_outgoingVelocity_dirty;
-      mutable float cache_outgoingVelocity;
-      mutable bool cache_angle_dirty;
+      mutable bool cache_outgoingVelocity_dirty = false;
+      mutable float cache_outgoingVelocity = 0.0f;
+      mutable bool cache_angle_dirty = false;
       mutable radian cache_angle;
-      mutable bool cache_incomingBodyAngle_dirty;
+      mutable bool cache_incomingBodyAngle_dirty = false;
       mutable radian cache_incomingBodyAngle;
-      mutable bool cache_outgoingBodyAngle_dirty;
+      mutable bool cache_outgoingBodyAngle_dirty = false;
       mutable radian cache_outgoingBodyAngle;
-      mutable bool cache_incomingBodyDirection_dirty;
+      mutable bool cache_incomingBodyDirection_dirty = false;
       mutable Vector3 cache_incomingBodyDirection;
-      mutable bool cache_outgoingBodyDirection_dirty;
+      mutable bool cache_outgoingBodyDirection_dirty = false;
       mutable Vector3 cache_outgoingBodyDirection;
 
-      std::string cache_AnimType;
+      e_DefString cache_AnimType;
+      std::string cache_AnimType_str;
 
   };
 

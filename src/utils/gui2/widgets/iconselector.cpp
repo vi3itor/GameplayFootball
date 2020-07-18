@@ -1,13 +1,25 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "iconselector.hpp"
 
-#include "../windowmanager.hpp"
+#include <cmath>
 
-#include "SDL/SDL_gfxBlitFunc.h"
-#include "SDL/SDL_rotozoom.h"
+#include "../windowmanager.hpp"
 
 namespace blunted {
 
@@ -77,7 +89,8 @@ namespace blunted {
     if (IsFocussed()) {
       alpha = 200;
     } else {
-      alpha = int(floor(200 - (clamp(fadeOut_ms, 0, fadeOutTime_ms) / (float)fadeOutTime_ms * 150)));
+      alpha = int(std::floor(200 - (clamp(fadeOut_ms, 0, fadeOutTime_ms) /
+                                    (float)fadeOutTime_ms * 150)));
     }
 
     int x, y, w, h;
@@ -90,10 +103,8 @@ namespace blunted {
       float position = i - visibleSelectedEntry;
       float xpos = width_percent * 0.5;
       if (position > 0.5 * -pi && position < 0.5 * pi) {
-        float size = fabs(cos(position));
-        float width = 8.0 * size;
-        float height = 10.0 * size;
-        xpos += sin(position) * width_percent * 0.4;
+        float size = fabs(std::cos(position));
+        xpos += std::sin(position) * width_percent * 0.4;
         // only resize internals, for speed (no texture recreate)
         entries.at(i).icon->SetPosition(xpos - 8.0 * 0.5, height_percent * 0.5 - 10.0 * 0.5);
         entries.at(i).icon->SetZoom(size, size);

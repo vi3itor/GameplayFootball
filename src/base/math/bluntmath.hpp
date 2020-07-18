@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,17 +18,17 @@
 #ifndef _hpp_bluntmath
 #define _hpp_bluntmath
 
-#include "defines.hpp"
+#include "../../defines.hpp"
 
+#include <cmath>
 #include <limits>
 
-// todo: function names should probably start with caps
+
 
 namespace blunted {
 
   real clamp(const real value, const real min, const real max);
   real NormalizedClamp(const real value, const real min, const real max);
-  real invsqrt(real fvalue);
 
   // you can never be too specific ;)
   const real pi = 3.1415926535897932384626433832795028841972f; // last decimal rounded ;)
@@ -28,11 +41,12 @@ namespace blunted {
   bool sign(real n);
   signed int signSide(real n); // returns -1 or 1
   bool is_odd(int n);
-  void randomseed();
+  void randomseed(unsigned int seed);
   real random(real min, real max);
+  real random_non_determ(real min, real max);
 
-  inline void fastrandomseed() {
-    fastrandseed = static_cast<unsigned int>(std::time(0));
+  inline void fastrandomseed(unsigned int seed) {
+    fastrandseed = seed;
     max_uint = std::numeric_limits<unsigned int>::max();
   }
 
@@ -44,13 +58,11 @@ namespace blunted {
   }
 
   inline float curve(float source, float bias = 1.0f) { // make linear / into sined _/-
-    return (sin((source - 0.5f) * pi) * 0.5f + 0.5f) * bias +
+    return (std::sin((source - 0.5f) * pi) * 0.5f + 0.5f) * bias +
            source * (1.0f - bias);
   }
 
-  int pot(int x);
   real ModulateIntoRange(real min, real max, real value);
-
 }
 
 #endif

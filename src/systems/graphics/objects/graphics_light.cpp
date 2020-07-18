@@ -1,11 +1,24 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "graphics_light.hpp"
 
-#include "systems/graphics/rendering/r3d_messages.hpp"
-#include "managers/resourcemanagerpool.hpp"
+#include "../../../systems/graphics/rendering/r3d_messages.hpp"
+#include "../../../managers/resourcemanagerpool.hpp"
 
 #include "../graphics_scene.hpp"
 #include "../graphics_system.hpp"
@@ -81,35 +94,16 @@ namespace blunted {
 
   void GraphicsLight_LightInterpreter::OnUnload() {
 
-    // todo IMPORTANT: find a way to dynamically unload shadow maps if a camera is removed
-    // maybe a timer? if not used for x seconds, unload? would take a away the need to let camera keep record of lights
+
 
     Renderer3D *renderer3D = caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D();
 
     std::vector<ShadowMap>::iterator iter = caller->shadowMaps.begin();
     while (iter != caller->shadowMaps.end()) {
 
-      // verbose printf("erasing shadowmap %s (framebuffer)\n", (*iter).cameraName.c_str());
-
-      // delete framebuffer
-      boost::intrusive_ptr<Renderer3DMessage_DeleteFrameBuffer> deleteFrameBuffer(new Renderer3DMessage_DeleteFrameBuffer((*iter).frameBufferID, e_TargetAttachment_Depth));
-      renderer3D->messageQueue.PushMessage(deleteFrameBuffer);
-      deleteFrameBuffer->Wait();
-
-      // happens automagically when noone links to texture anymore.. disabled here so we don't delete the texture twice
-      /*
-      (*iter).texture->resourceMutex.lock();
-      boost::intrusive_ptr<Renderer3DMessage_DeleteTexture> deleteTexture(new Renderer3DMessage_DeleteTexture((*iter).texture->GetResource()->GetID()));
-      renderer3D->messageQueue.PushMessage(deleteTexture);
-      deleteTexture->Wait();
-      (*iter).texture->resourceMutex.unlock();
-      */
-
-      // verbose printf("erasing shadowmap %s (links)\n", (*iter).cameraName.c_str());
-
+      Renderer3DMessage_DeleteFrameBuffer((*iter).frameBufferID, e_TargetAttachment_Depth).Handle(renderer3D);
       (*iter).visibleGeometry.clear();
       (*iter).texture.reset();
-
       iter = caller->shadowMaps.erase(iter);
     }
 
@@ -139,16 +133,12 @@ namespace blunted {
     //caller->SetRotation(rotation);
   }
 
-  bool GLLI_SortVertexBufferQueueEntries(const VertexBufferQueueEntry &vb1, const VertexBufferQueueEntry &vb2) {
-    return vb1.vertexBuffer->GetResource()->GetID() < vb2.vertexBuffer->GetResource()->GetID();
-  }
-
   void GraphicsLight_LightInterpreter::EnqueueShadowMap(boost::intrusive_ptr<Camera> camera, std::deque < boost::intrusive_ptr<Geometry> > visibleGeometry) {
     if (!caller->GetShadow()) return;
 
     int index = -1;
     for (int i = 0; i < (signed int)caller->shadowMaps.size(); i++) {
-      if (caller->shadowMaps.at(i).cameraName == camera->GetName()) { // todo: what if cam name changes? this is hardly ideal
+      if (caller->shadowMaps.at(i).cameraName == camera->GetName()) {
         index = i;
       }
     }
@@ -158,22 +148,17 @@ namespace blunted {
       // does not yet exist
 
       ShadowMap map;
-      map.texture = ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->
+      map.texture = ResourceManagerPool::getTextureManager()->
                       Fetch(std::string(camera->GetName() + int_to_str(intptr_t(this))), false, false); // false == don't try to use loader
       if (map.texture->GetResource()->GetID() == -1) {
         Renderer3D *renderer3D = caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D();
         map.texture->GetResource()->SetRenderer3D(renderer3D);
-        //map.texture->GetResource()->CreateTexture(e_InternalPixelFormat_DepthComponent32, e_PixelFormat_DepthComponent, 1024, 1024, false, false, false, true, true);
         map.texture->GetResource()->CreateTexture(e_InternalPixelFormat_DepthComponent16, e_PixelFormat_DepthComponent, 2048, 2048, false, false, false, true, true);
-        //map.texture->GetResource()->CreateTexture(e_InternalPixelFormat_DepthComponent16, e_PixelFormat_DepthComponent, 4096, 4096, false, false, false, true, true); // filter on to get hardware shadowmap AA in shader: http://stackoverflow.com/questions/22419682/glsl-sampler2dshadow-and-shadow2d-clarification
-        //map.texture->GetResource()->CreateTexture(e_InternalPixelFormat_DepthComponent32, e_PixelFormat_DepthComponent, 4096, 4096, false, false, false, true, true);
-        //map.texture->GetResource()->CreateTexture(e_InternalPixelFormat_DepthComponent16, e_PixelFormat_DepthComponent, 8192, 8192, false, false, false, true, true);
 
         // create framebuffer for shadowmap
-        boost::intrusive_ptr<Renderer3DMessage_CreateFrameBuffer> createFrameBuffer(new Renderer3DMessage_CreateFrameBuffer(e_TargetAttachment_Depth, map.texture->GetResource()->GetID()));
-        renderer3D->messageQueue.PushMessage(createFrameBuffer);
-        createFrameBuffer->Wait();
-        map.frameBufferID = createFrameBuffer->frameBufferID;
+        Renderer3DMessage_CreateFrameBuffer op(e_TargetAttachment_Depth, map.texture->GetResource()->GetID());
+        op.Handle(renderer3D);
+        map.frameBufferID = op.frameBufferID;
       }
 
       map.cameraName = camera->GetName();
@@ -189,8 +174,6 @@ namespace blunted {
     while (visibleGeometryIter != visibleGeometry.end()) {
       boost::intrusive_ptr<GraphicsGeometry_GeometryInterpreter> interpreter = static_pointer_cast<GraphicsGeometry_GeometryInterpreter>((*visibleGeometryIter)->GetInterpreter(e_SystemType_Graphics));
 
-      (*visibleGeometryIter)->LockSubject();
-
       // add buffers to visible geometry queue
       interpreter->GetVertexBufferQueue(caller->shadowMaps.at(index).visibleGeometry);
 
@@ -199,8 +182,6 @@ namespace blunted {
       std::deque<VertexBufferQueueEntry>::iterator visibleGeometryBufferIter = caller->shadowMaps.at(index).visibleGeometry.end();
       visibleGeometryBufferIter--;
       (*visibleGeometryBufferIter).aabb = (*visibleGeometryIter)->GetAABB();
-
-      (*visibleGeometryIter)->UnlockSubject();
 
       visibleGeometryIter++;
     }
@@ -238,7 +219,6 @@ namespace blunted {
     // view matrix
     Quaternion ident(QUATERNION_IDENTITY);
     Vector3 pos = (caller->GetPosition().GetNormalized(Vector3(0, 0, -1))) + camera->GetDerivedPosition().Get2D() + Vector3(0, 70, 0);
-    //Vector3 pos = caller->GetPosition().GetNormalized();
     Quaternion rot; rot = caller->GetPosition().GetNormalized(Vector3(0, 0, -1));
     caller->shadowMaps.at(index).lightViewMatrix.ConstructInverse(pos, Vector3(1, 1, 1), rot);
   }
@@ -257,16 +237,10 @@ namespace blunted {
   void GraphicsLight_LightInterpreter::OnPoke() {
     if (!caller->GetShadow()) return;
 
-    std::vector<ShadowMap>::iterator iter = caller->shadowMaps.begin();
-
-    while (iter != caller->shadowMaps.end()) {
-      boost::intrusive_ptr<Renderer3DMessage_RenderShadowMap> renderShadowMap(new Renderer3DMessage_RenderShadowMap(*iter));
-      caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D()->messageQueue.PushMessage(renderShadowMap);
-      renderShadowMap->Wait();
-
-      (*iter).visibleGeometry.clear();
-
-      iter++;
+    for (auto& it : caller->shadowMaps) {
+      Renderer3DMessage_RenderShadowMap op(it);
+      op.Handle(caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D());
+      it.visibleGeometry.clear();
     }
   }
 

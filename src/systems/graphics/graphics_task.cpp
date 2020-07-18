@@ -1,220 +1,116 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "graphics_task.hpp"
 
-#include "base/log.hpp"
-#include "base/utils.hpp"
+#include "../../base/log.hpp"
+#include "../../base/utils.hpp"
 
-#include "managers/taskmanager.hpp"
-#include "managers/scenemanager.hpp"
-#include "managers/environmentmanager.hpp"
+#include "../../managers/scenemanager.hpp"
+#include "../../managers/environmentmanager.hpp"
 
 #include "graphics_system.hpp"
 
-#include "scene/objects/geometry.hpp"
-#include "scene/objects/skybox.hpp"
-#include "scene/objects/light.hpp"
+#include "../../scene/objects/geometry.hpp"
+#include "../../scene/objects/skybox.hpp"
+#include "../../scene/objects/light.hpp"
 
-#include "scene/scene3d/scene3d.hpp"
+#include "../../scene/scene3d/scene3d.hpp"
 
 namespace blunted {
 
   GraphicsTask::GraphicsTask(GraphicsSystem *system) : ISystemTask(), graphicsSystem(system) {
-    shadowSkipFrameCounter = 0;
     swapBuffers = boost::intrusive_ptr<Renderer3DMessage_SwapBuffers>();
     lastSwapTime_ms.SetData(EnvironmentManager::GetInstance().GetTime_ms());
   }
 
   GraphicsTask::~GraphicsTask() {
     graphicsSystem = NULL;
-    // if a previous swapbuffer is still busy, wait
-    if (swapBuffers != boost::intrusive_ptr<Renderer3DMessage_SwapBuffers>()) {
-      swapBuffers->Wait();
-    }
-    swapBuffers.reset();
-    swapBuffers = boost::intrusive_ptr<Renderer3DMessage_SwapBuffers>();
   }
-
-  void GraphicsTask::operator()() {
-    Log(e_Notice, "GraphicsTask", "operator()()", "Starting GraphicsSystemTask thread");
-
-    SetState(e_ThreadState_Idle);
-
-    quit = false;
-
-    // the actual, per frame system task
-    while (!quit) {
-      boost::intrusive_ptr<Command> message(messageQueue.WaitForMessage());
-      //assert(message.get());
-      //printf("gfx task got message!\n");
-      SetState(e_ThreadState_Busy); // recently added
-      if (!message->Handle(this)) quit = true;
-      message.reset(); // recently added
-      SetState(e_ThreadState_Idle); // recently added
-    }
-
-    Log(e_Notice, "GraphicsTask", "operator()()", "Shutting down GraphicsSystemTask thread");
-
-    if (messageQueue.GetPending() > 0) Log(e_Error, "GraphicsTask", "operator()()", messageQueue.GetPending() + " messages left on quit!");
-  }
-
-
-  int GraphicsTask::GetAverageFrameTime_ms(unsigned int frameCount) const {
-    frameTimes_ms.Lock();
-    std::list<int>::const_reverse_iterator iter = frameTimes_ms->rbegin();
-    unsigned int total = 0;
-    int totalTime_ms = 0;
-    while (iter != frameTimes_ms->rend()) {
-      totalTime_ms += *iter;
-      //printf("added %i\n", *iter);
-      total++;
-      if (total > frameCount) break;
-      iter++;
-    }
-    frameTimes_ms.Unlock();
-    if (total > 0) {
-      //printf("total time %i, total count %i, result %i\n", totalTime_ms, total, totalTime_ms / total);
-      return totalTime_ms / total;
-    } else {
-      return -1;
-    }
-  }
-
-  int GraphicsTask::GetTimeSinceLastSwap_ms() const {
-    return EnvironmentManager::GetInstance().GetTime_ms() - lastSwapTime_ms.GetData();
-  }
-
 
   void GraphicsTask::GetPhase() {
+    if (!enabled) return;
 
-    boost::mutex::scoped_lock getPhaseLock(graphicsSystem->getPhaseMutex);
-
-    TaskManager *taskManager = TaskManager::GetInstancePtr();
     Renderer3D *renderer3D = graphicsSystem->GetRenderer3D();
 
 
     // poke all image2D objects
 
-    boost::intrusive_ptr<GraphicsTaskCommand_RenderImage2D> renderImage2D(new GraphicsTaskCommand_RenderImage2D());
-    taskManager->EnqueueWork(renderImage2D, true);
-    //taskManager->NotifyWorkers();
-
+    bool success = false;
+    boost::shared_ptr<IScene> scene2d = SceneManager::GetInstance().GetScene("scene2D", success);
+    if (success) {
+      scene2d->PokeObjects(e_ObjectType_Image2D, e_SystemType_Graphics);
+    }
 
     // collect visibles
-
-    bool success;
-    boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene3D", success);
+    boost::shared_ptr<IScene> scene3d = SceneManager::GetInstance().GetScene("scene3D", success);
     if (success) {
       std::list < boost::intrusive_ptr<Camera> > cameras;
-      boost::static_pointer_cast<Scene3D>(scene)->GetObjects<Camera>(e_ObjectType_Camera, cameras);
-      //printf("cameras.size: %i\n", (signed int)cameras.size());
-
-      std::vector < boost::intrusive_ptr<GraphicsTaskCommand_EnqueueView> > enqueueView; // [cameras.size()]
+      boost::static_pointer_cast<Scene3D>(scene3d)->GetObjects<Camera>(e_ObjectType_Camera, cameras);
       std::list < boost::intrusive_ptr<Camera> >::iterator cameraIter = cameras.begin();
-      int i = 0;
       // enqueue all camera views
       while (cameraIter != cameras.end()) {
 
         if ((*cameraIter)->IsEnabled()) {
-          enqueueView.push_back(boost::intrusive_ptr<GraphicsTaskCommand_EnqueueView>(new GraphicsTaskCommand_EnqueueView((*cameraIter), shadowSkipFrameCounter)));
-          taskManager->EnqueueWork(enqueueView.back(), false);
+          GraphicsTaskCommand_EnqueueView((*cameraIter)).Handle();
         }
 
         cameraIter++;
       }
 
-      taskManager->NotifyWorkers();
-
-      for (unsigned int i = 0; i < enqueueView.size(); i++) {
-        // wait on camera views
-        enqueueView[i]->Wait();
-      }
-
     }
-
-    renderImage2D->Wait();
   }
 
   void GraphicsTask::ProcessPhase() {
+    if (!enabled) return;
 
-    TaskManager *taskManager = TaskManager::GetInstancePtr();
     Renderer3D *renderer3D = graphicsSystem->GetRenderer3D();
 
     // poke lights
-    if (shadowSkipFrameCounter == 0) {
-      boost::intrusive_ptr<GraphicsTaskCommand_RenderShadowMaps> renderShadowMaps(new GraphicsTaskCommand_RenderShadowMaps());
-      taskManager->EnqueueWork(renderShadowMaps, true);
-      //renderShadowMaps->Execute();
-
-      renderShadowMaps->Wait();
+    {
+      bool success = false;
+      boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene3D", success);
+      if (success) {
+        scene->PokeObjects(e_ObjectType_Light, e_SystemType_Graphics);
+      }
     }
 
     // poke camera
-    boost::intrusive_ptr<GraphicsTaskCommand_RenderCamera> renderCamera(new GraphicsTaskCommand_RenderCamera());
-    taskManager->EnqueueWork(renderCamera, true);
-    //renderCamera->Execute();
-
-    renderCamera->Wait();
-
+    bool success = false;
+    boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene3D", success);
+    if (success) scene->PokeObjects(e_ObjectType_Camera, e_SystemType_Graphics);
     // render the Overlay2D queue
     boost::intrusive_ptr<Renderer3DMessage_RenderOverlay2D> renderOverlay2D(new Renderer3DMessage_RenderOverlay2D(graphicsSystem->GetOverlay2DQueue()));
-    renderer3D->messageQueue.PushMessage(renderOverlay2D, true);
+    renderOverlay2D->Handle(renderer3D);
 
   }
 
   void GraphicsTask::PutPhase() {
-    TaskManager *taskManager = TaskManager::GetInstancePtr();
+    if (!enabled) return;
+
     Renderer3D *renderer3D = graphicsSystem->GetRenderer3D();
 
     // swap the buffers and stare in awe
     swapBuffers = new Renderer3DMessage_SwapBuffers();
-    renderer3D->messageQueue.PushMessage(swapBuffers, true);
-
-
-    // wait for previous frame to swap
-    // opengl thread has only one message processor, so don't wait for swap (might take long to vsync). messages will be processed serially anyway
-    // todo: maybe still should be on. have to check. seems that the lazy wait causes time problems: the next frame is drawn for situation time = x,
-    // but since the gfx thread has to wait for the vsync, the situation drawn should be that of time = x + vsync_delay. this makes for choppy gfx.
-    // update: with high enough fps, this might be ok
-    // update: last frame time thing obviously doesn't work when only setting lastswaptime at next frame time, so waiting here for retrace again.
-    //         kinda seems more fluent, though this may be psychological
-
-    if (swapBuffers != boost::intrusive_ptr<Renderer3DMessage_SwapBuffers>()) {
-      swapBuffers->Wait();
-      unsigned long readyTime_ms = swapBuffers->GetReadyTime_ms();
-      frameTimes_ms.Lock();
-      //printf("readyTime_ms = %i, lastSwapTime_ms = %i\n", readyTime_ms, lastSwapTime_ms.GetData());
-      frameTimes_ms->push_back(readyTime_ms - lastSwapTime_ms.GetData());
-      if (frameTimes_ms->size() > 100) frameTimes_ms->pop_front();
-      frameTimes_ms.Unlock();
-      lastSwapTime_ms.SetData(readyTime_ms);
-    }
-
-
-    shadowSkipFrameCounter++;
-    if (shadowSkipFrameCounter > 1) shadowSkipFrameCounter = 0;
-  }
-
-
-  bool GraphicsTaskCommand_Dummy::Execute(void *caller) {
-    for (int i = 0; i < 100000; i++) {
-      random(0, 1);
-    }
-    return true;
-  }
-
-  bool GraphicsTaskCommand_RenderCamera::Execute(void *caller) {
-    bool success;
-    boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene3D", success);
-    if (success) scene->PokeObjects(e_ObjectType_Camera, e_SystemType_Graphics);
-
-    return true;
+    swapBuffers->Handle(renderer3D);
   }
 
   bool GraphicsTaskCommand_EnqueueView::Execute(void *caller) {
-    bool success;
+    bool success = false;
     boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene3D", success);
 
     if (success) {
@@ -223,7 +119,7 @@ namespace blunted {
       Quaternion cameraRot = camera->GetDerivedRotation();
       float nearCap, farCap;
       camera->GetCapping(nearCap, farCap);
-      // todo
+
       float fov = camera->GetFOV() * 2.0f;
       float wideScreenMultiplier = 2.5f;
       vector_Planes bounding;
@@ -239,26 +135,6 @@ namespace blunted {
       bounding.push_back(plane);
       plane.Set(cameraPos + cameraRot * Vector3(0, 0, -farCap), cameraRot * Vector3(0, 0, 1).GetNormalized());
       bounding.push_back(plane);
-
-      //(cameraRot * Vector3(0, 1, 0).GetNormalized()).Print();
-
-
-      /* per-objecttype version
-
-      std::list < boost::intrusive_ptr<Geometry> > visibleGeometry;
-      boost::static_pointer_cast<Scene3D>(scene)->GetObjects<Geometry>(e_ObjectType_Geometry, visibleGeometry, bounding);
-      //printf("geometry.size: %i\n", visibleGeometry.size());
-
-      std::list < boost::intrusive_ptr<Light> > visibleLights;
-      boost::static_pointer_cast<Scene3D>(scene)->GetObjects<Light>(e_ObjectType_Light, visibleLights, bounding);
-      //printf("lights.size: %i\n", visibleLights.size());
-
-      std::list < boost::intrusive_ptr<Skybox> > skyboxes;
-      boost::static_pointer_cast<Scene3D>(scene)->GetObjects<Skybox>(e_ObjectType_Skybox, skyboxes);
-      //printf("skyboxes.size: %i\n", skyboxes.size());
-
-      */
-
 
       // altogether function (may be slow in scenes with lots of objects)
 
@@ -283,20 +159,11 @@ namespace blunted {
 
 
       // prepare shadow maps
-
-      if (shadowSkipFrameCounter == 0) {
-        std::deque < boost::intrusive_ptr<Light> >::iterator lightIter = visibleLights.begin();
-        while (lightIter != visibleLights.end()) {
-          if ((*lightIter)->IsEnabled()) {
-            if ((*lightIter)->GetShadow()) {
-              EnqueueShadowMap(*lightIter);
-            }
-          }
-          lightIter++;
+      for (auto& light : visibleLights) {
+        if (light->IsEnabled() && light->GetShadow()) {
+          EnqueueShadowMap(light);
         }
       }
-
-
       // enqueue camera view
 
       camera->EnqueueView(visibleGeometry, visibleLights, skyboxes);
@@ -306,8 +173,8 @@ namespace blunted {
   }
 
   void GraphicsTaskCommand_EnqueueView::EnqueueShadowMap(boost::intrusive_ptr<Light> light) {
-    // todo: bounding box (this is a hax)
-    bool success;
+
+    bool success = false;
     boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene3D", success);
     if (success) {
       std::deque < boost::intrusive_ptr<Geometry> > visibleGeometry;
@@ -324,26 +191,6 @@ namespace blunted {
       //boost::static_pointer_cast<Scene3D>(scene)->GetObjects<Geometry>(e_ObjectType_Geometry, visibleGeometry);
       light->EnqueueShadowMap(camera, visibleGeometry);
     }
-  }
-
-  bool GraphicsTaskCommand_RenderImage2D::Execute(void *caller) {
-    bool success;
-    boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene2D", success);
-    if (success) {
-      scene->PokeObjects(e_ObjectType_Image2D, e_SystemType_Graphics);
-    }
-
-    return true;
-  }
-
-  bool GraphicsTaskCommand_RenderShadowMaps::Execute(void *caller) {
-    bool success;
-    boost::shared_ptr<IScene> scene = SceneManager::GetInstance().GetScene("scene3D", success);
-    if (success) {
-      scene->PokeObjects(e_ObjectType_Light, e_SystemType_Graphics);
-    }
-
-    return true;
   }
 
 }

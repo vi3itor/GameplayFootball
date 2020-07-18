@@ -1,10 +1,23 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "goalie_default.hpp"
 
-#include "base/geometry/triangle.hpp"
+#include "../../../../../base/geometry/triangle.hpp"
 
 #include "../../../../../main.hpp"
 
@@ -17,32 +30,11 @@ GoalieDefaultStrategy::GoalieDefaultStrategy(ElizaController *controller) : Stra
 GoalieDefaultStrategy::~GoalieDefaultStrategy() {
 }
 
-Vector3 CalculateBestAchievableTarget(Player *player, const Vector3 &pos1, float time1_sec, const Vector3 &pos2, float time2_sec) {
-
-  float stepsPerMeter = 4.0f;
-  float stepSize = 1.0f / clamp(pos1.GetDistance(pos2) * stepsPerMeter, 1.0f, 20.0f);
-
-  for (float percentage = 0.0f; percentage <= 1.0f; percentage += stepSize) {
-
-    Vector3 checkPos = pos1 + (pos2 - pos1) * percentage;
-    float checkTime_sec = time1_sec + (time2_sec - time1_sec) * percentage;
-
-    int maxTime_ms = -1;
-    unsigned int timeNeeded_ms = AI_GetTimeNeededForDistance_ms(player->GetPosition(), player->GetMovement(), checkPos, player->GetMaxVelocity(), false/*precise*/, maxTime_ms, false/*debug*/).optimistic_ms;
-    if (timeNeeded_ms * 0.001f <= checkTime_sec) {
-      return checkPos;
-      break;
-    }
-  }
-
-  return pos2;
-}
-
 void GoalieDefaultStrategy::RequestInput(const MentalImage *mentalImage, Vector3 &direction, float &velocity) {
 
   // base position
   float lineDistance = 10.0f; // default distance keeper stays in front of goal line
-  Vector3 ballPos = mentalImage->GetBallPrediction(600 + CastPlayer()->GetTimeNeededToGetToBall_ms() * 0.2f).Get2D(); // todo: not sure if we should keep this to 'now' or more predictive
+  Vector3 ballPos = mentalImage->GetBallPrediction(600 + CastPlayer()->GetTimeNeededToGetToBall_ms() * 0.2f).Get2D();
   Vector3 targetPos = Vector3((pitchHalfW - lineDistance) * team->GetSide(), 0, 0);
   Vector3 goalPos = Vector3(pitchHalfW * team->GetSide(), 0, 0);
 
@@ -56,7 +48,7 @@ void GoalieDefaultStrategy::RequestInput(const MentalImage *mentalImage, Vector3
 
       // tactical position, make goal as small as possible
 
-      // todo: maybe in some situations, we should prefer walking as max velo, because then the correct body directino can be applied (walking backwards, for example), which are better for deflect anims
+
       maxVelocity = sprintVelocity;//walkVelocity;
 
       // first, make line from ballPos to one post, then one to the other post, then calculate the line in between.
@@ -182,7 +174,7 @@ void GoalieDefaultStrategy::RequestInput(const MentalImage *mentalImage, Vector3
     } else {
 
       // intercept ball
-      // todo: doesn't yet walk backwards if ball is too high
+
 
       maxVelocity = sprintVelocity;
 

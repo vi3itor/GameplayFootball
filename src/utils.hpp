@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -36,12 +49,12 @@ enum e_PositionName {
 
 struct WeightedPosition {
   e_PositionName positionName;
-  float weight;
+  float weight = 0.0f;
 };
 
 struct Stat {
   std::string name;
-  float value;
+  float value = 0.0f;
 };
 
 enum e_DevelopmentCurveType {
@@ -57,8 +70,6 @@ void InitDefaultProfiles();
 void GetDefaultProfile(const std::vector<WeightedPosition> &weightedPositions, std::vector<Stat> &averageProfile);
 std::string GetProfileString(const std::vector<Stat> &profileStats);
 
-float GetAverageStatFromValue(int age, int value);
-
 float CalculateStat(float baseStat, float profileStat, float age, e_DevelopmentCurveType developmentCurveType);
 /* ^ above one supersedes these
 float GetIndividualStat(float averageStat, float profileStat, float age);
@@ -73,7 +84,7 @@ template <typename T> struct TemporalValue {
     time_ms = 0;
   }
   T data;
-  unsigned long time_ms;
+  unsigned long time_ms = 0;
 };
 
 template <> TemporalValue<Quaternion>::TemporalValue();
@@ -87,18 +98,14 @@ template <typename T> class TemporalSmoother {
     void SetValue(const T &data, unsigned long valueTime_ms);
     T GetValue(unsigned long currentTime_ms, unsigned long history_ms = temporalSmoother_history_ms) const; // get interpolated measurement, history_ms seconds ago from now
 
-    void Clear() {
-      values.clear();
-    }
-
   protected:
-    T MixData(const T &data1, const T &data2, float bias = 0.0f) const;
+    T DataMix(const T &data1, const T &data2, float bias = 0.0f) const;
 
     boost::circular_buffer< TemporalValue<T> > values;
-    unsigned int snapshotSize;
+    unsigned int snapshotSize = 0;
 
 };
 
-template <> Quaternion TemporalSmoother<Quaternion>::MixData(const Quaternion &data1, const Quaternion &data2, float bias) const;
+template <> Quaternion TemporalSmoother<Quaternion>::DataMix(const Quaternion &data1, const Quaternion &data2, float bias) const;
 
 #endif

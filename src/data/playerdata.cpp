@@ -1,28 +1,38 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "playerdata.hpp"
 
-#include "utils/database.hpp"
+#include <cmath>
 
-#include "base/utils.hpp"
+#include "../utils/database.hpp"
+
+#include "../base/utils.hpp"
 
 #include "../main.hpp"
 
 PlayerData::PlayerData(int playerDatabaseID) : databaseID(playerDatabaseID) {
+  DatabaseResult *result = GetDB()->Query("select firstname, lastname, base_stat, profile_xml, age, skincolor, hairstyle, haircolor, height from players where id = " + int_to_str(databaseID) + " limit 1");
 
-  //std::string test = "select * from players where id = " + int_to_str(databaseID) + " limit 1";
-  //printf("test: %s\n", test.c_str());
-
-  DatabaseResult *result = GetDB()->Query("select firstname, lastname, role, base_stat, profile_xml, age, skincolor, hairstyle, haircolor, height from players where id = " + int_to_str(databaseID) + " limit 1");
-
-  std::string roleString;
   std::string profileString;
   float baseStat = 0.0f;
   int age = 15;
 
-  skinColor = int(round(random(1, 4)));
+  skinColor = int(std::round(random(1, 4)));
   hairStyle = "short01";
   hairColor = "darkblonde";
   height = 1.8f;
@@ -30,7 +40,6 @@ PlayerData::PlayerData(int playerDatabaseID) : databaseID(playerDatabaseID) {
   for (unsigned int c = 0; c < result->data.at(0).size(); c++) {
     if (result->header.at(c).compare("firstname") == 0) firstName = result->data.at(0).at(c);
     if (result->header.at(c).compare("lastname") == 0) lastName = result->data.at(0).at(c);
-    if (result->header.at(c).compare("role") == 0) roleString = result->data.at(0).at(c);
     if (result->header.at(c).compare("base_stat") == 0) baseStat = atof(result->data.at(0).at(c).c_str());
     if (result->header.at(c).compare("profile_xml") == 0) profileString = result->data.at(0).at(c);
     if (result->header.at(c).compare("age") == 0) age = atoi(result->data.at(0).at(c).c_str());
@@ -41,14 +50,6 @@ PlayerData::PlayerData(int playerDatabaseID) : databaseID(playerDatabaseID) {
   }
 
   delete result;
-
-  std::vector<std::string> roleStrings;
-  tokenize(roleString, roleStrings);
-
-  for (int i = 0; i < (signed int)roleStrings.size(); i++) {
-    roles.push_back(GetRoleFromString(roleStrings.at(i)));
-  }
-
 
   // get average stat for current age
 
@@ -66,12 +67,12 @@ PlayerData::PlayerData(int playerDatabaseID) : databaseID(playerDatabaseID) {
     stats.Set((*iter).first.c_str(), value);
     iter++;
   }
-
+  UpdateValues();
 }
 
 PlayerData::PlayerData() {
   // officials, for example, use this constructor
-  skinColor = int(round(random(1, 4)));
+  skinColor = int(std::round(random(1, 4)));
   hairStyle = "short01";
   hairColor = "darkblonde";
   height = 1.8f;
@@ -98,16 +99,18 @@ PlayerData::PlayerData() {
   stats.Set("mental_defensivepositioning", 0.6);
   stats.Set("mental_offensivepositioning", 0.6);
   stats.Set("mental_vision", 0.6);
+  UpdateValues();
 }
+
+void PlayerData::UpdateValues() {
+  physical_velocity = GetStat("physical_velocity");
+}
+
 
 PlayerData::~PlayerData() {
 }
 
-const std::vector<e_PlayerRole> &PlayerData::GetRoles() const {
-  return roles;
-}
-
-float PlayerData::GetStat(const char *name) {
+float PlayerData::GetStat(const char *name) const {
   bool exists = stats.Exists(name);
   if (!exists) printf("Stat named '%s' does not exist!\n", name);
   assert(exists);

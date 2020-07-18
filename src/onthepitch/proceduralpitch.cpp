@@ -1,41 +1,56 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "proceduralpitch.hpp"
 
+#include <cmath>
+
 #include "../misc/perlin.h"
 
 #include "../gamedefines.hpp"
 
-#include "types/resource.hpp"
-#include "systems/graphics/resources/texture.hpp" // todo: via image
-#include "managers/resourcemanagerpool.hpp"
+#include "../types/resource.hpp"
+#include "../systems/graphics/resources/texture.hpp"
+#include "../managers/resourcemanagerpool.hpp"
 
 #include "../main.hpp" // for getconfig
 
 float *perlinTex;
-int perlinTexW;
-int perlinTexH;
+int perlinTexW = 0;
+int perlinTexH = 0;
 
 Vector3 *seamlessTex;
-int seamlessTexW;
-int seamlessTexH;
+int seamlessTexW = 0;
+int seamlessTexH = 0;
 
 Vector3 *overlayTex;
 float *overlay_alphaTex;
-int overlayTexW;
-int overlayTexH;
+int overlayTexW = 0;
+int overlayTexH = 0;
 
 template <typename T> T BilinearSample(T* tex, float x, float y, int w, int h) {
   // nearest neighbor version
   //return tex[int(y) * w + int(x)];
 
   // actual bilinear version
-  int intX1 = int(floor(x));
-  int intY1 = int(floor(y));
-  int intX2 = (int(floor(x)) + 1) % w;
-  int intY2 = (int(floor(y)) + 1) % h;
+  int intX1 = int(std::floor(x));
+  int intY1 = int(std::floor(y));
+  int intX2 = (int(std::floor(x)) + 1) % w;
+  int intY2 = (int(std::floor(y)) + 1) % h;
   T x1y1 = tex[intY1 * w + intX1];
   T x2y1 = tex[intY1 * w + intX2];
   T x1y2 = tex[intY2 * w + intX1];
@@ -66,8 +81,8 @@ Uint32 GetPitchDiffuseColor(SDL_Surface *pitchSurf, float xCoord, float yCoord) 
 
   float seamlessX = ((xCoord / pitchFullHalfW) * 0.5 + 0.5) * seamlessTexW * 18.0 * texScale;
   float seamlessY = ((yCoord / pitchFullHalfH) * 0.5 + 0.5) * seamlessTexH * 12.0 * texScale;
-  seamlessX = fmod(seamlessX, seamlessTexW);
-  seamlessY = fmod(seamlessY, seamlessTexH);
+  seamlessX = std::fmod(seamlessX, seamlessTexW);
+  seamlessY = std::fmod(seamlessY, seamlessTexH);
   //printf("%f, %f - ", seamlessX, seamlessY);
   Vector3 tex = BilinearSample(seamlessTex, seamlessX, seamlessY, seamlessTexW, seamlessTexH);
   r = r * (1.0f - texMultiplier) + tex.coords[0] * texMultiplier;
@@ -103,7 +118,14 @@ Uint32 GetPitchDiffuseColor(SDL_Surface *pitchSurf, float xCoord, float yCoord) 
 
   // fake ambient occlusion
   Vector3 lightPos = Vector3(0, 0, 0);
-  float darkness = 1.0f - pow(clamp((lightPos - Vector3(xCoord / pitchHalfW, yCoord / pitchHalfH, 0)).GetLength() * 0.7f, 0.0, 1.0), 1.5f) * 0.18f;
+  float darkness =
+      1.0f - std::pow(clamp((lightPos - Vector3(xCoord / pitchHalfW,
+                                                yCoord / pitchHalfH, 0))
+                                    .GetLength() *
+                                0.7f,
+                            0.0, 1.0),
+                      1.5f) *
+                 0.18f;
   r *= darkness;
   g *= darkness;
   b *= darkness;
@@ -138,12 +160,10 @@ inline Uint32 GetPitchSpecularColor(SDL_Surface *pitchSurf, float xCoord, float 
   return color;
 }
 
-inline float xmod(float coord, float repeat) { return coord - repeat * floor(coord / repeat); }
-
 float GetSmoothGrassDirection(float coord, float repeat, int transitionSharpness = 5) {
-  float iteration = floor(coord / repeat);
+  float iteration = std::floor(coord / repeat);
   float bias = coord - repeat * iteration; // goes from 0 to 1 over two bands (since bands are split by being < 0.5 and > 0.5)
-  bias = sin(bias * 2 * pi) * 0.5f + 0.5f;
+  bias = std::sin(bias * 2 * pi) * 0.5f + 0.5f;
   for (int i = 0; i < transitionSharpness; i++) {
     bias = curve(bias, 1.0f);
   }
@@ -155,6 +175,10 @@ float GetSmoothGrassDirection(float coord, float repeat, int transitionSharpness
 }
 
 Uint32 GetPitchNormalColor(SDL_Surface *pitchSurf, float xCoord, float yCoord, float repeatMultiplier) {
+  if (!GetGameConfig().high_quality) {
+    // Below logic is super slow, so we return fixed color (at least for now).
+    return 0xffaaaa;
+  }
 
   float noisefac = 0.06f;
 
@@ -184,99 +208,6 @@ Uint32 GetPitchNormalColor(SDL_Surface *pitchSurf, float xCoord, float yCoord, f
 
   Uint32 color = SDL_MapRGB(pitchSurf->format, normal.coords[0] * 255, normal.coords[1] * 255, normal.coords[2] * 255);
   return color;
-}
-
-void ConvertCoord(int resX, int resY, float x1, float y1, signed int offsetW, signed int offsetH, float &x, float &y) {
-  x = x1;
-  y = y1;
-  // convert to bitmap scale
-  x *= resX;
-  x /= pitchFullHalfW;
-  y *= resY;
-  y /= pitchFullHalfH;
-  // see which of the 4 parts of the pitch is to be drawed on, mirror accordingly
-  if (offsetW == -1) x = resX - x - 1;
-  if (offsetH == -1) y = resY - y - 1;
-}
-
-void BmpRect(SDL_PixelFormat *pixelFormat, Uint32 *bitmap, int resX, int resY, float x1, float y1, float x2, float y2, signed int offsetW, signed int offsetH) {
-  float rx1, ry1;
-  ConvertCoord(resX, resY, x1, y1, offsetW, offsetH, rx1, ry1);
-  float rx2, ry2;
-  ConvertCoord(resX, resY, x2, y2, offsetW, offsetH, rx2, ry2);
-
-  if (rx2 < rx1) { float tmp = rx2; rx2 = rx1; rx1 = tmp; }
-  if (ry2 < ry1) { float tmp = ry2; ry2 = ry1; ry1 = tmp; }
-
-  for (int xi = int(ceil(rx1)); xi <= int(floor(rx2)); xi++) {
-    for (int yi = int(ceil(ry1)); yi <= int(floor(ry2)); yi++) {
-      Uint8 r, g, b;
-      SDL_GetRGB(bitmap[yi * resX + xi], pixelFormat, &r, &g, &b);
-      r = r * 0.5 + 100;
-      g = g * 0.5 + 100;
-      b = b * 0.5 + 100;
-      Uint32 lineColor = SDL_MapRGB(pixelFormat, r, g, b);
-      bitmap[yi * resX + xi] = lineColor;
-    }
-  }
-}
-
-void BmpArc(SDL_PixelFormat *pixelFormat, Uint32 *bitmap, int resX, int resY, float x1, float y1, float radius, radian begin, radian end, signed int offsetW, signed int offsetH) {
-
-  int steps = resX * 0.03 * radius; // hackish approximation ;)
-  radian step = fabs(end - begin) / (float)steps;
-  float currentRad = begin;
-  for (int i = 0; i < steps; i++) {
-    float x, y;
-    x = x1 + sin(currentRad) * radius;
-    y = y1 + cos(pi + currentRad) * radius;
-
-    float rxf, ryf;
-    ConvertCoord(resX, resY, x, y, offsetW, offsetH, rxf, ryf);
-    int rx, ry;
-    rx = int(round(rxf));
-    ry = int(round(ryf));
-    if (rx >= 0 && rx < resX && ry >= 0 && ry < resY) {
-      Uint8 r, g, b;
-      SDL_GetRGB(bitmap[ry * resX + rx], pixelFormat, &r, &g, &b);
-      r = r * 0.5 + 100;
-      g = g * 0.5 + 100;
-      b = b * 0.5 + 100;
-      Uint32 color = SDL_MapRGB(pixelFormat, r, g, b);
-      bitmap[ry * resX + rx] = color;
-    }
-    currentRad += step;
-  }
-}
-
-void DrawLines(SDL_PixelFormat *pixelFormat, Uint32 *diffuseBitmap, int resX, int resY, signed int offsetW, signed int offsetH) {
-
-  // only draw lowerright section, other sections are mirrored through offsetW and offsetH
-
-  BmpRect(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - lineHalfW, 0, pitchHalfW + lineHalfW, pitchHalfH + lineHalfW, offsetW, offsetH); // backline
-  BmpRect(pixelFormat, diffuseBitmap, resX, resY, 0, pitchHalfH - lineHalfW, pitchHalfW - lineHalfW, pitchHalfH + lineHalfW, offsetW, offsetH); // sideline
-  BmpRect(pixelFormat, diffuseBitmap, resX, resY, 0, 0, lineHalfW * 0.5f, pitchHalfH - lineHalfW, offsetW, offsetH); // middleline // for some reason, the middle line needs to be half-half-width to become the right width. i don't know why either.
-
-  // 16.5m box
-  BmpRect(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - 16.5 - lineHalfW, 0, pitchHalfW - 16.5 + lineHalfW, 20.15 - lineHalfW, offsetW, offsetH); // vert
-  BmpRect(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - 16.5 - lineHalfW, 20.15 - lineHalfW, pitchHalfW - lineHalfW, 20.15 + lineHalfW, offsetW, offsetH); // horiz
-
-  // keeper box (9.16m half width)
-  BmpRect(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - 5.5 - lineHalfW, 0, pitchHalfW - 5.5 + lineHalfW, 9.16 - lineHalfW, offsetW, offsetH); // vert
-  BmpRect(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - 5.5 - lineHalfW, 9.16 - lineHalfW, pitchHalfW - lineHalfW, 9.16 + lineHalfW, offsetW, offsetH); // horiz
-
-  BmpArc(pixelFormat, diffuseBitmap, resX, resY, 0, 0, 9.15, 0.5 * pi, 1 * pi, offsetW, offsetH); // middle circle
-  BmpArc(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - 11, 0, 9.15, 1.208 * pi, 1.5 * pi, offsetW, offsetH); // penalty arc
-
-  BmpArc(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW, pitchHalfH, 0.5, 1.55 * pi, 2 * pi, offsetW, offsetH); // corner arc
-
-  // penalty spot
-  BmpArc(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - 11, 0, 0.08, 0.5 * pi, 1.5 * pi, offsetW, offsetH);
-  BmpArc(pixelFormat, diffuseBitmap, resX, resY, pitchHalfW - 11, 0, 0.04, 0.5 * pi, 1.5 * pi, offsetW, offsetH);
-
-  // center spot
-  BmpArc(pixelFormat, diffuseBitmap, resX, resY, 0, 0, 0.08, 0.5 * pi, 1.0 * pi, offsetW, offsetH);
-  BmpArc(pixelFormat, diffuseBitmap, resX, resY, 0, 0, 0.04, 0.5 * pi, 1.0 * pi, offsetW, offsetH);
 }
 
 /* todo
@@ -344,46 +275,46 @@ void CreateChunk(int i, int resX, int resY, int resSpecularX, int resSpecularY, 
 
   // find pitch texture
 
-  bool alreadyThere;
-  boost::intrusive_ptr < Resource<Texture> > pitchDiffuseTex = ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->Fetch("pitch_0" + int_to_str(i) + ".png", false, alreadyThere, true);
+  bool alreadyThere = false;
+  boost::intrusive_ptr < Resource<Texture> > pitchDiffuseTex = ResourceManagerPool::getTextureManager()->Fetch("pitch_0" + int_to_str(i) + ".png", false, alreadyThere, true);
   assert(alreadyThere);
-  boost::intrusive_ptr < Resource<Texture> > pitchSpecularTex = ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->Fetch("pitch_specular_0" + int_to_str(i) + ".png", false, alreadyThere, true);
+  boost::intrusive_ptr < Resource<Texture> > pitchSpecularTex = ResourceManagerPool::getTextureManager()->Fetch("pitch_specular_0" + int_to_str(i) + ".png", false, alreadyThere, true);
   assert(alreadyThere);
-  boost::intrusive_ptr < Resource<Texture> > pitchNormalTex = ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->Fetch("pitch_normal_0" + int_to_str(i) + ".png", false, alreadyThere, true);
+  boost::intrusive_ptr < Resource<Texture> > pitchNormalTex = ResourceManagerPool::getTextureManager()->Fetch("pitch_normal_0" + int_to_str(i) + ".png", false, alreadyThere, true);
   assert(alreadyThere);
 
-  // todo: don't directly access texture resources anymore, work via engine's Surface resources.
+
 
   // overwrite pitch texture
 
-  pitchDiffuseTex->resourceMutex.lock();
   pitchDiffuseTex->GetResource()->DeleteTexture();
   pitchDiffuseTex->GetResource()->CreateTexture(e_InternalPixelFormat_SRGB8, e_PixelFormat_RGB, resX, resY, false, true, true, true);
   pitchDiffuseTex->GetResource()->UpdateTexture(pitchDiffuseSurf, false, true);
-  pitchDiffuseTex->resourceMutex.unlock();
   SDL_FreeSurface(pitchDiffuseSurf);
 
-  pitchSpecularTex->resourceMutex.lock();
   pitchSpecularTex->GetResource()->DeleteTexture();
   pitchSpecularTex->GetResource()->CreateTexture(e_InternalPixelFormat_RGB8, e_PixelFormat_RGB, resSpecularX, resSpecularY, false, true, true, true);
   pitchSpecularTex->GetResource()->UpdateTexture(pitchSpecularSurf, false, true);
-  pitchSpecularTex->resourceMutex.unlock();
   SDL_FreeSurface(pitchSpecularSurf);
 
-  pitchNormalTex->resourceMutex.lock();
   pitchNormalTex->GetResource()->DeleteTexture();
   pitchNormalTex->GetResource()->CreateTexture(e_InternalPixelFormat_RGB8, e_PixelFormat_RGB, resNormalX, resNormalY, false, true, true, true);
   pitchNormalTex->GetResource()->UpdateTexture(pitchNormalSurf, false, true);
-  pitchNormalTex->resourceMutex.unlock();
   SDL_FreeSurface(pitchNormalSurf);
 
   if (Verbose()) printf("3\n");
 
 }
 
-void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int resNormalX, int resNormalY) {
+static bool already_loaded = false;
 
-  SDL_Surface *seamless = IMG_Load("media/textures/pitch/seamlessgrass08.png");
+void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int resNormalX, int resNormalY) {
+  if (already_loaded) {
+    return;
+  }
+  already_loaded = true;
+
+  SDL_Surface *seamless = IMG_LoadBmp("media/textures/pitch/seamlessgrass08.png");
   SDL_PixelFormat seamlessFormat = *seamless->format;
   seamlessTexW = seamless->w;
   seamlessTexH = seamless->h;
@@ -398,7 +329,7 @@ void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int r
   }
   SDL_FreeSurface(seamless);
 
-  SDL_Surface *overlay = IMG_Load("media/textures/pitch/overlay.png");
+  SDL_Surface *overlay = IMG_LoadBmp("media/textures/pitch/overlay.png");
   SDL_PixelFormat overlayFormat = *overlay->format;
   overlayTexW = overlay->w;
   overlayTexH = overlay->h;
@@ -431,11 +362,19 @@ void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int r
   float sinScale = 4.0f; // smaller is larger (heh)
   float ynoise[perlinTexH];
   for (int y = 0; y < perlinTexH; y++) {
-    ynoise[y] = (sin(y / (float)perlinTexH * 13 * sinScale) + sin(y / (float)perlinTexH * 43 * sinScale) + sin(y / (float)perlinTexH * 107 * sinScale) + sin(y / (float)perlinTexH * 245 * sinScale)) * 0.25f;
+    ynoise[y] = (std::sin(y / (float)perlinTexH * 13 * sinScale) +
+                 std::sin(y / (float)perlinTexH * 43 * sinScale) +
+                 std::sin(y / (float)perlinTexH * 107 * sinScale) +
+                 std::sin(y / (float)perlinTexH * 245 * sinScale)) *
+                0.25f;
   }
 
   for (int x = 0; x < perlinTexW; x++) {
-    float xnoise = (sin(x / (float)perlinTexW * 15 * sinScale) + sin(x / (float)perlinTexW * 41 * sinScale) + sin(x / (float)perlinTexW * 109 * sinScale) + sin(x / (float)perlinTexW * 241 * sinScale)) * 0.25f;
+    float xnoise = (std::sin(x / (float)perlinTexW * 15 * sinScale) +
+                    std::sin(x / (float)perlinTexW * 41 * sinScale) +
+                    std::sin(x / (float)perlinTexW * 109 * sinScale) +
+                    std::sin(x / (float)perlinTexW * 241 * sinScale)) *
+                   0.25f;
     for (int y = 0; y < perlinTexH; y++) {
       float noise = xnoise * 0.65f + ynoise[y] * 0.35f;
       noise = curve(noise * 0.5f + 0.5f, 0.4f) * 2.0f - 1.0f; // compress
@@ -449,15 +388,15 @@ void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int r
     }
   }
 
-  boost::thread pitchThread[4];
+//  boost::thread pitchThread[4];
   float grassNormalRepeatMultiplier = (random(0, 1) > 0.5f) ? 1.0f : 0.5f;
   for (int i = 0; i < 4; i++) {
-    pitchThread[i] = boost::thread(&CreateChunk, i + 1, resX, resY, resSpecularX, resSpecularY, resNormalX, resNormalY, grassNormalRepeatMultiplier);
+    CreateChunk(i + 1, resX, resY, resSpecularX, resSpecularY, resNormalX, resNormalY, grassNormalRepeatMultiplier);
   }
 
-  for (int i = 0; i < 4; i++) {
-    pitchThread[i].join();
-  }
+//  for (int i = 0; i < 4; i++) {
+    //pitchThread[i].join();
+  //}
 
   delete perlin1;
   delete perlin2;

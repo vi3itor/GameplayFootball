@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -18,9 +31,12 @@ namespace blunted {
   }
 
   Gui2View::~Gui2View() {
+    CHECK(exit_called);
   }
 
   void Gui2View::Exit() {
+    CHECK(!exit_called);
+    exit_called = true;
 
     //printf("exiting %s.. ", name.c_str());
 
@@ -120,8 +136,8 @@ namespace blunted {
     float tmp_x_percent = this->x_percent;
     float tmp_y_percent = this->y_percent;
     if (parent) {
-      float tmp_parent_x_percent;
-      float tmp_parent_y_percent;
+      float tmp_parent_x_percent = 0.0f;
+      float tmp_parent_y_percent = 0.0f;
       parent->GetDerivedPosition(tmp_parent_x_percent, tmp_parent_y_percent);
       tmp_x_percent += tmp_parent_x_percent;
       tmp_y_percent += tmp_parent_y_percent;
@@ -262,16 +278,4 @@ namespace blunted {
       images.at(i)->SetPokePriority(prio);
     }
   }
-
-  void Gui2View::PrintTree(int depth) {
-    for (int i = 0; i < depth; i++) printf("  ");
-    printf("%s (prio %i)\n", GetName().c_str(), GetZPriority());
-
-    std::vector<Gui2View*>::iterator iter = children.begin();
-    while (iter != children.end()) {
-      (*iter)->PrintTree(depth + 1);
-      iter++;
-    }
-  }
-
 }

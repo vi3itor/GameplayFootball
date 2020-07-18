@@ -1,11 +1,26 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "menuscene.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
-#include "scene/objectfactory.hpp"
+#include <cmath>
+
+#include "../managers/resourcemanagerpool.hpp"
+#include "../scene/objectfactory.hpp"
 
 #include "../main.hpp"
 
@@ -64,7 +79,7 @@ MenuScene::MenuScene() {
 
   Log(e_Notice, "MenuScene", "MenuScene", "Creating geometry");
 
-  boost::intrusive_ptr < Resource<GeometryData> > geometryData = ResourceManagerPool::GetInstance().GetManager<GeometryData>(e_ResourceType_GeometryData)->Fetch("media/objects/menu/background01.ase", true);
+  boost::intrusive_ptr < Resource<GeometryData> > geometryData = ResourceManagerPool::getGeometryManager()->Fetch("media/objects/menu/background01.ase", true);
   geom = static_pointer_cast<Geometry>(ObjectFactory::GetInstance().CreateObject("geometry_menuscene", e_ObjectType_Geometry));
   GetScene3D()->CreateSystemObjects(geom);
   geom->SetGeometryData(geometryData);
@@ -90,7 +105,7 @@ void MenuScene::Process() {
 
   if (targetLocation.timeStamp_ms >= time_ms) {
     float bias = (time_ms - sourceLocation.timeStamp_ms) / (float)(targetLocation.timeStamp_ms - sourceLocation.timeStamp_ms);
-    bias = pow(bias, 0.8f);
+    bias = std::pow(bias, 0.8f);
     bias = curve(bias, 1.0f);
 
     currentPosition = sourceLocation.position * (1.0f - bias) + targetLocation.position * bias;
@@ -118,8 +133,10 @@ void MenuScene::Process() {
   // move around a little
   float randomPositionIntensity = 0.3f;
   Vector3 randomPositionNoise;
-  randomPositionNoise.coords[0] = sin(time_ms / 7420.0f) * 0.5f + cos(time_ms / 3150.0f) * 0.3f;
-  randomPositionNoise.coords[1] = cos(time_ms / 8250.0f) * 0.5f + sin(time_ms / 2420.0f) * 0.3f;
+  randomPositionNoise.coords[0] =
+      std::sin(time_ms / 7420.0f) * 0.5f + std::cos(time_ms / 3150.0f) * 0.3f;
+  randomPositionNoise.coords[1] =
+      std::cos(time_ms / 8250.0f) * 0.5f + std::sin(time_ms / 2420.0f) * 0.3f;
 
   camera->SetPosition(currentPosition + randomPositionNoise * randomPositionIntensity);
   camera->SetRotation(currentOrientation);
@@ -129,7 +146,7 @@ void MenuScene::Process() {
   for (int i = 0; i < 3; i++) {
     float separationFactor = 0.7f;
     Vector3 lightOffset = Vector3(0.0f, -1.0f, 0.0f) * separationFactor;
-    float timeOffset = sin(time_ms / 4000.0f) * 5.0f;
+    float timeOffset = std::sin(time_ms / 4000.0f) * 5.0f;
     lightOffset.Rotate2D(2.0f * pi * (i / 3.0f) + timeOffset);
     hoverLights[i]->SetPosition(hoverLightPosition + lightOffset);
   }

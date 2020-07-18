@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -5,13 +18,13 @@
 #ifndef _HPP_TASKSEQUENCE
 #define _HPP_TASKSEQUENCE
 
-#include "defines.hpp"
+#include "../defines.hpp"
 
-#include "types/command.hpp"
+#include "../types/command.hpp"
 
-#include "systems/isystem.hpp"
-#include "systems/isystemtask.hpp"
-#include "types/iusertask.hpp"
+#include "../systems/isystem.hpp"
+#include "../systems/isystemtask.hpp"
+#include "../types/iusertask.hpp"
 
 namespace blunted {
 
@@ -21,8 +34,6 @@ namespace blunted {
       virtual ~ITaskSequenceEntry() {};
       virtual bool Execute() = 0;
       virtual bool IsReady() = 0;
-      virtual void Wait() {};
-      virtual bool Reset() { return true; };
 
     protected:
 
@@ -36,8 +47,6 @@ namespace blunted {
 
       virtual bool Execute();
       virtual bool IsReady();
-      virtual void Wait();
-      virtual bool Reset();
 
     protected:
       boost::intrusive_ptr<ISystemTaskMessage> command;
@@ -52,8 +61,6 @@ namespace blunted {
 
       virtual bool Execute();
       virtual bool IsReady();
-      virtual void Wait();
-      virtual bool Reset();
 
     protected:
       boost::intrusive_ptr<IUserTaskMessage> command;
@@ -71,37 +78,6 @@ namespace blunted {
     protected:
       boost::mutex &sequenceLock;
       Lockable<bool> isReady;
-
-  };
-
-  class TaskSequenceEntry_Lock : public ITaskSequenceEntry {
-
-    public:
-      TaskSequenceEntry_Lock(boost::mutex &sequenceLock);
-      virtual ~TaskSequenceEntry_Lock();
-
-      virtual bool Execute();
-      virtual bool IsReady();
-      virtual bool Reset();
-
-    protected:
-      boost::mutex &sequenceLock;
-      boost::thread lockThread;
-      TaskSequenceEntryLockThread *lockThreadObject;
-
-  };
-
-  class TaskSequenceEntry_Unlock : public ITaskSequenceEntry {
-
-    public:
-      TaskSequenceEntry_Unlock(boost::mutex &sequenceLock);
-      virtual ~TaskSequenceEntry_Unlock();
-
-      virtual bool Execute();
-      virtual bool IsReady();
-
-    protected:
-      boost::mutex &sequenceLock;
 
   };
 
@@ -135,14 +111,13 @@ namespace blunted {
 
       void AddEntry(boost::shared_ptr<ITaskSequenceEntry> entry);
       void AddSystemTaskEntry(ISystem *system, e_TaskPhase taskPhase);
-      void AddUserTaskEntry(boost::shared_ptr<IUserTask> userTask, e_TaskPhase taskPhase);
-      void AddLockEntry(boost::mutex &theLock, e_LockAction lockAction);
+      void AddUserTaskEntry(boost::shared_ptr<IUserTask> userTask,
+                            e_TaskPhase taskPhase);
       void AddTerminator();
 
       int GetEntryCount() const;
       boost::shared_ptr<ITaskSequenceEntry> GetEntry(int num);
       int GetSequenceTime() const;
-      void SetSequenceTime(int value);
       const std::string GetName() const;
       bool GetSkippable() const { return skipOnTooLate; }
 
@@ -153,12 +128,12 @@ namespace blunted {
 
       // time assigned for 1 run of this sequence
       // if 0, run continuously
-      int sequenceTime_ms;
+      int sequenceTime_ms = 0;
 
       // if at due start time the previous run is not ready yet,
       // if true: just forget about the lost time
       // if false: start as soon as previous run is ready, to keep up with the sync
-      bool skipOnTooLate;
+      bool skipOnTooLate = false;
 
   };
 

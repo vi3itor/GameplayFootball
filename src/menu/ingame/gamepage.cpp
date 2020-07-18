@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -6,9 +19,8 @@
 
 #include "../pagefactory.hpp"
 
-#include "main.hpp"
+#include "../../main.hpp"
 
-#include "replaymenu.hpp"
 #include "phasemenu.hpp"
 #include "gameover.hpp"
 
@@ -18,13 +30,13 @@ using namespace blunted;
 
 GamePage::GamePage(Gui2WindowManager *windowManager, const Gui2PageData &pageData) : Gui2Page(windowManager, pageData), match(0) {
 
-  Gui2Caption *betaSign = new Gui2Caption(windowManager, "caption_betasign", 0, 0, 0, 2, "gameplay football public beta 2 v0.2");
-  betaSign->SetColor(Vector3(180, 180, 180));
-  betaSign->SetTransparency(0.3f);
-  this->AddView(betaSign);
-  float w = betaSign->GetTextWidthPercent();
-  betaSign->SetPosition(50 - w * 0.5f, 97.0f);
-  betaSign->Show();
+  // Gui2Caption *betaSign = new Gui2Caption(windowManager, "caption_betasign", 0, 0, 0, 2, "Google Research Football alpha v0.7");
+  // betaSign->SetColor(Vector3(180, 180, 180));
+  // betaSign->SetTransparency(0.3f);
+  // this->AddView(betaSign);
+  // float w = betaSign->GetTextWidthPercent();
+  // betaSign->SetPosition(50 - w * 0.5f, 97.0f);
+  // betaSign->Show();
 
   this->Show();
 
@@ -33,8 +45,7 @@ GamePage::GamePage(Gui2WindowManager *windowManager, const Gui2PageData &pageDat
 
 GamePage::~GamePage() {
 
-  // todonow: only when connected in the first place?
-  // problem is, this function may be called outside of gametask's or match's lifetime.
+
 
   if (match) {
     //GetGameTask()->matchLifetimeMutex.lock();
@@ -43,7 +54,6 @@ GamePage::~GamePage() {
       if (Verbose()) printf("disconnecting signals\n");
 
       match->sig_OnMatchPhaseChange.disconnect(boost::bind(&GamePage::GoMatchPhasePage, this));
-      match->sig_OnShortReplayMoment.disconnect(boost::bind(&GamePage::GoShortReplayPage, this));
       match->sig_OnExtendedReplayMoment.disconnect(boost::bind(&GamePage::GoExtendedReplayPage, this));
       match->sig_OnGameOver.disconnect(boost::bind(&GamePage::GoGameOverPage, this));
 
@@ -56,7 +66,7 @@ GamePage::~GamePage() {
 void GamePage::Process() {
 
   if (!match) {
-    GetGameTask()->matchLifetimeMutex.lock();
+    //GetGameTask()->matchLifetimeMutex.lock();
     if (GetGameTask()->GetMatch() != 0) {
 
       match = GetGameTask()->GetMatch();
@@ -64,34 +74,19 @@ void GamePage::Process() {
       if (Verbose()) printf("connecting signals\n");
 
       match->sig_OnMatchPhaseChange.connect(boost::bind(&GamePage::GoMatchPhasePage, this));
-      match->sig_OnShortReplayMoment.connect(boost::bind(&GamePage::GoShortReplayPage, this));
       match->sig_OnExtendedReplayMoment.connect(boost::bind(&GamePage::GoExtendedReplayPage, this));
       match->sig_OnGameOver.connect(boost::bind(&GamePage::GoGameOverPage, this));
 
     }
-    GetGameTask()->matchLifetimeMutex.unlock();
+    //GetGameTask()->matchLifetimeMutex.unlock();
   }
 
 }
 
-void GamePage::GoShortReplayPage() {
-  // todo
-  CreatePage((int)e_PageID_Replay);
-}
-
 void GamePage::GoExtendedReplayPage() {
-
-  this->Exit();
-
   Properties properties;
-  ReplayPage *replayPage = static_cast<ReplayPage*>(windowManager->GetPageFactory()->CreatePage((int)e_PageID_Replay, properties, 0));
-
-  // todo: use properties instead?
   int replayHistoryOffset_ms = match->GetReplaySize_ms();
   bool stayInReplay = true;
-  replayPage->Autorun(replayHistoryOffset_ms, stayInReplay);
-
-  delete this;
 }
 
 void GamePage::GoMatchPhasePage() {
@@ -106,9 +101,6 @@ void GamePage::GoMatchPhasePage() {
 
 void GamePage::GoGameOverPage() {
   CreatePage((int)e_PageID_GameOver);
-}
-
-void GamePage::OnCreatedMatch() {
 }
 
 void GamePage::ProcessWindowingEvent(WindowingEvent *event) {

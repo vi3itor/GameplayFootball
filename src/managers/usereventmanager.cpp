@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -13,12 +26,7 @@ namespace blunted {
   UserEventManager::UserEventManager() {
     lastKeyTime_ms = 0;
 
-    SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL);
-
-    for (int i = 0; i < SDLK_LAST; i++) {
-      keyPressed[i].pressed = false;
-      keyPressed[i].pressTime_ms = 0;
-    }
+    //SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL);
 
     // yes, SDL starts mousebuttons at 1...
     for (int i = 1; i < 8; i++) {
@@ -66,14 +74,13 @@ namespace blunted {
     switch (event.type) {
       case SDL_KEYDOWN:
         keyPressedMutex.lock();
-        keyPressed[event.key.keysym.sym].pressed = true;
         keyPressed[event.key.keysym.sym].pressTime_ms = EnvironmentManager::GetInstance().GetTime_ms();
         lastKeyTime_ms = keyPressed[event.key.keysym.sym].pressTime_ms;
         keyPressedMutex.unlock();
         break;
       case SDL_KEYUP:
         keyPressedMutex.lock();
-        keyPressed[event.key.keysym.sym].pressed = false;
+        keyPressed.erase(event.key.keysym.sym);
         keyPressedMutex.unlock();
         break;
       case SDL_MOUSEBUTTONDOWN:
@@ -106,42 +113,29 @@ namespace blunted {
     }
   }
 
-  bool UserEventManager::GetKeyboardState(SDLKey key) const {
+  bool UserEventManager::GetKeyboardState(SDL_Keycode code) const {
     boost::mutex::scoped_lock lock(keyPressedMutex);
-    return keyPressed[key].pressed;
+    return keyPressed.count(code) > 0;
   }
 
-  void UserEventManager::SetKeyboardState(SDLKey key, bool newState) {
+  std::map<SDL_Keycode, TimedKeyPress> UserEventManager::GetKeyboardState() const {
     boost::mutex::scoped_lock lock(keyPressedMutex);
-    keyPressed[key].pressed = newState;
-    if (newState) keyPressed[key].pressTime_ms = EnvironmentManager::GetInstance().GetTime_ms();
+    return keyPressed;
   }
 
-  unsigned long UserEventManager::GetLastKeyPressDiff_ms() {
+  void UserEventManager::SetKeyboardState(SDL_Keycode key, bool newState) {
     boost::mutex::scoped_lock lock(keyPressedMutex);
-    return EnvironmentManager::GetInstance().GetTime_ms() - lastKeyTime_ms;
+    if (!newState) {
+      keyPressed.erase(key);
+    } else {
+      keyPressed[key].pressTime_ms = EnvironmentManager::GetInstance().GetTime_ms();
+    }
   }
 
-  unsigned long UserEventManager::GetLastKeyPressDiff_ms(SDLKey key) {
+  unsigned long UserEventManager::GetLastKeyPressDiff_ms(SDL_Keycode key) {
     boost::mutex::scoped_lock lock(keyPressedMutex);
     return EnvironmentManager::GetInstance().GetTime_ms() - keyPressed[key].pressTime_ms;
   }
-
-  bool UserEventManager::GetMouseButtonState(int sdlButtonID) const {
-    boost::mutex::scoped_lock lock(mousePressedMutex);
-    return mousePressed[sdlButtonID];
-  }
-
-  Vector3 UserEventManager::GetMouseRelativePos() const {
-    Vector3 mousePos;
-    mousePos.coords[2] = 0;
-    int x, y;
-    SDL_GetRelativeMouseState(&x, &y);
-    mousePos.coords[0] = x;
-    mousePos.coords[1] = y;
-    return mousePos;
-  }
-
 
   bool UserEventManager::GetJoyButtonState(int joyID, int sdlJoyButtonID) const {
     boost::mutex::scoped_lock lock(joyButtonPressedMutex);
@@ -160,7 +154,7 @@ namespace blunted {
     float max = joyAxisCalibration[joyID][axisID][1];
     float rest = joyAxisCalibration[joyID][axisID][2];
 
-    float value = joyAxis[joyID][axisID];
+    volatile float value = joyAxis[joyID][axisID];
 
     if (value < min) value = min;
     if (value > max) value = max;
@@ -198,21 +192,6 @@ namespace blunted {
   float UserEventManager::GetJoystickAxisRaw(int joyID, int axisID) const {
     boost::mutex::scoped_lock lock(joyButtonPressedMutex);
     return joyAxis[joyID][axisID];
-  }
-
-  float UserEventManager::GetJoystickAxisCalibrationMin(int joyID, int axisID) {
-    boost::mutex::scoped_lock lock(joyButtonPressedMutex);
-    return joyAxisCalibration[joyID][axisID][0];
-  }
-
-  float UserEventManager::GetJoystickAxisCalibrationMax(int joyID, int axisID) {
-    boost::mutex::scoped_lock lock(joyButtonPressedMutex);
-    return joyAxisCalibration[joyID][axisID][1];
-  }
-
-  float UserEventManager::GetJoystickAxisCalibrationRest(int joyID, int axisID) {
-    boost::mutex::scoped_lock lock(joyButtonPressedMutex);
-    return joyAxisCalibration[joyID][axisID][2];
   }
 
   void UserEventManager::SetJoystickAxisCalibration(int joyID, int axisID, float min, float max, float rest) {

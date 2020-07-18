@@ -1,10 +1,23 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "graphics_camera.hpp"
 
-#include "systems/graphics/rendering/r3d_messages.hpp"
+#include "../../../systems/graphics/rendering/r3d_messages.hpp"
 
 #include "../graphics_scene.hpp"
 #include "../graphics_system.hpp"
@@ -62,19 +75,15 @@ namespace blunted {
 
     Renderer3D *renderer3D = caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D();
 
-    boost::intrusive_ptr<Renderer3DMessage_CreateView> createView(new Renderer3DMessage_CreateView(caller->x_percent, caller->y_percent, caller->width_percent, caller->height_percent));
-    renderer3D->messageQueue.PushMessage(createView);
-    createView->Wait();
-    caller->viewID = createView->viewID;
+    Renderer3DMessage_CreateView op(caller->x_percent, caller->y_percent, caller->width_percent, caller->height_percent);
+    op.Handle(renderer3D);
+    caller->viewID = op.viewID;
   }
 
   void GraphicsCamera_CameraInterpreter::OnUnload() {
     Renderer3D *renderer3D = caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D();
 
-    boost::intrusive_ptr<Renderer3DMessage_DeleteView> deleteView(new Renderer3DMessage_DeleteView(caller->viewID));
-    renderer3D->messageQueue.PushMessage(deleteView);
-    deleteView->Wait();
-
+    Renderer3DMessage_DeleteView(caller->viewID).Handle(renderer3D);
     delete caller;
     caller = 0;
   }
@@ -104,13 +113,8 @@ namespace blunted {
     while (visibleGeometryIter != visibleGeometry.end()) {
       boost::intrusive_ptr<GraphicsGeometry_GeometryInterpreter> interpreter = static_pointer_cast<GraphicsGeometry_GeometryInterpreter>((*visibleGeometryIter)->GetInterpreter(e_SystemType_Graphics));
 
-      (*visibleGeometryIter)->LockSubject();
-
       // add buffers to visible geometry queue
       interpreter->GetVertexBufferQueue(buffer->visibleGeometry);
-
-      (*visibleGeometryIter)->UnlockSubject();
-
       std::deque<VertexBufferQueueEntry>::iterator visibleGeometryBufferIter = buffer->visibleGeometry.end();
       visibleGeometryBufferIter--;
       (*visibleGeometryBufferIter).aabb = (*visibleGeometryIter)->GetAABB();
@@ -127,7 +131,6 @@ namespace blunted {
 
       boost::intrusive_ptr<GraphicsLight_LightInterpreter> interpreter = static_pointer_cast<GraphicsLight_LightInterpreter>((*visibleLightIter)->GetInterpreter(e_SystemType_Graphics));
 
-      (*visibleLightIter)->LockSubject();
       if (interpreter->GetShadow()) {
         ShadowMap shadowMap = interpreter->GetShadowMap(camName);
         if (shadowMap.cameraName != "") {
@@ -141,9 +144,8 @@ namespace blunted {
       } else {
         entry.hasShadow = false;
       }
-      (*visibleLightIter)->UnlockSubject();
 
-      // todo: less locking
+
       entry.position = (*visibleLightIter)->GetDerivedPosition();
       entry.type = (*visibleLightIter)->GetType() == e_LightType_Directional ? 0 : 1;
       entry.shadow = (*visibleLightIter)->GetShadow();
@@ -161,14 +163,8 @@ namespace blunted {
     std::deque < boost::intrusive_ptr<Skybox> >::iterator skyboxIter = skyboxes.begin();
     while (skyboxIter != skyboxes.end()) {
       boost::intrusive_ptr<GraphicsGeometry_SkyboxInterpreter> interpreter = static_pointer_cast<GraphicsGeometry_SkyboxInterpreter>((*skyboxIter)->GetInterpreter(e_SystemType_Graphics));
-
-      (*skyboxIter)->LockSubject();
-
       // add buffers to skybox queue
       interpreter->GetVertexBufferQueue(buffer->skyboxes);
-
-      (*skyboxIter)->UnlockSubject();
-
       skyboxIter++;
     }
 
@@ -184,11 +180,8 @@ namespace blunted {
 
   void GraphicsCamera_CameraInterpreter::OnPoke() {
 
-    boost::intrusive_ptr<Renderer3DMessage_RenderView> renderView(new Renderer3DMessage_RenderView(caller->viewID, caller->viewBuffer));
-    caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D()->messageQueue.PushMessage(renderView, true);
-
-    // why do we have to wait? crashes otherwise.. todo: find out why!
-    renderView->Wait();
+    Renderer3DMessage_RenderView op(caller->viewID, caller->viewBuffer);
+    op.Handle(caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D());
   }
 
 }

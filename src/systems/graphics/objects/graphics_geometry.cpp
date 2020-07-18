@@ -1,15 +1,29 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
 #include "graphics_geometry.hpp"
 
-#include "managers/resourcemanagerpool.hpp"
+#include "../../../managers/resourcemanagerpool.hpp"
 
 #include "../graphics_scene.hpp"
 #include "../graphics_system.hpp"
 
-#include "base/geometry/trianglemeshutils.hpp"
+#include "../../../base/geometry/trianglemeshutils.hpp"
+#include "../../../main.hpp"
 
 namespace blunted {
 
@@ -54,27 +68,29 @@ namespace blunted {
   GraphicsGeometry_GeometryInterpreter::GraphicsGeometry_GeometryInterpreter(GraphicsGeometry *caller) : caller(caller), usesIndices(false) {
   }
 
-  void LoadMaterials(Renderer3D *renderer3D, const Material *material, Renderer3DMaterial &r3dMaterial, boost::intrusive_ptr < Resource<Texture> > diffuseTexture, boost::intrusive_ptr < Resource<Texture> > normalTexture, boost::intrusive_ptr < Resource<Texture> > specularTexture, boost::intrusive_ptr < Resource<Texture> > illuminationTexture) {
-
+  void LoadMaterials(Renderer3D *renderer3D, const Material *material, Renderer3DMaterial &r3dMaterial) {
+    boost::intrusive_ptr < Resource<Texture> > diffuseTexture;
+    boost::intrusive_ptr < Resource<Texture> > normalTexture;
+    boost::intrusive_ptr < Resource<Texture> > specularTexture;
+    boost::intrusive_ptr < Resource<Texture> > illuminationTexture;
     if (material->diffuseTexture) {
       boost::intrusive_ptr < Resource<Surface> > surface = material->diffuseTexture;
 
       bool texAlreadyThere = false;
       diffuseTexture =
-        ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->
+        ResourceManagerPool::getTextureManager()->
           Fetch(surface->GetIdentString(), false, texAlreadyThere, true); // false == don't try to use loader
 
       if (!texAlreadyThere) {
         //printf("%s\n", surface->GetIdentString().c_str());
-        surface->resourceMutex.lock();
         SDL_Surface *image = surface->GetResource()->GetData();
         diffuseTexture->GetResource()->SetRenderer3D(renderer3D);
         bool repeat = true;
         bool mipmaps = true;
         bool bilinear = true;
-        diffuseTexture->GetResource()->CreateTexture((image->flags && SDL_SRCALPHA) ? e_InternalPixelFormat_SRGBA8 : e_InternalPixelFormat_SRGB8, (image->flags && SDL_SRCALPHA) ? e_PixelFormat_RGBA : e_PixelFormat_RGB, image->w, image->h, image->flags && SDL_SRCALPHA, repeat, mipmaps, bilinear);
-        diffuseTexture->GetResource()->UpdateTexture(image, image->flags && SDL_SRCALPHA, true);
-        surface->resourceMutex.unlock();
+        bool alpha = SDL_ISPIXELFORMAT_ALPHA((image->format->format));
+        diffuseTexture->GetResource()->CreateTexture(alpha ? e_InternalPixelFormat_SRGBA8 : e_InternalPixelFormat_SRGB8, alpha ? e_PixelFormat_RGBA : e_PixelFormat_RGB, image->w, image->h, alpha, repeat, mipmaps, bilinear);
+        diffuseTexture->GetResource()->UpdateTexture(image, alpha, true);
       }
     }
 
@@ -83,16 +99,14 @@ namespace blunted {
 
       bool texAlreadyThere = false;
       normalTexture =
-        ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->
+        ResourceManagerPool::getTextureManager()->
           Fetch(surface->GetIdentString(), false, texAlreadyThere, true); // false == don't try to use loader
 
       if (!texAlreadyThere) {
-        surface->resourceMutex.lock();
         SDL_Surface *image = surface->GetResource()->GetData();
         normalTexture->GetResource()->SetRenderer3D(renderer3D);
         normalTexture->GetResource()->CreateTexture(e_InternalPixelFormat_RGB8, e_PixelFormat_RGB, image->w, image->h, false, true, true, true);
         normalTexture->GetResource()->UpdateTexture(image, false, true);
-        surface->resourceMutex.unlock();
       }
     }
 
@@ -101,16 +115,14 @@ namespace blunted {
 
       bool texAlreadyThere = false;
       specularTexture =
-        ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->
+        ResourceManagerPool::getTextureManager()->
           Fetch(surface->GetIdentString(), false, texAlreadyThere, true); // false == don't try to use loader
 
       if (!texAlreadyThere) {
-        surface->resourceMutex.lock();
         SDL_Surface *image = surface->GetResource()->GetData();
         specularTexture->GetResource()->SetRenderer3D(renderer3D);
         specularTexture->GetResource()->CreateTexture(e_InternalPixelFormat_RGB8, e_PixelFormat_RGB, image->w, image->h, false, true, true, true);
         specularTexture->GetResource()->UpdateTexture(image, false, true);
-        surface->resourceMutex.unlock();
       }
     }
 
@@ -119,16 +131,14 @@ namespace blunted {
 
       bool texAlreadyThere = false;
       illuminationTexture =
-        ResourceManagerPool::GetInstance().GetManager<Texture>(e_ResourceType_Texture)->
+        ResourceManagerPool::getTextureManager()->
           Fetch(surface->GetIdentString(), false, texAlreadyThere, true); // false == don't try to use loader
 
       if (!texAlreadyThere) {
-        surface->resourceMutex.lock();
         SDL_Surface *image = surface->GetResource()->GetData();
         illuminationTexture->GetResource()->SetRenderer3D(renderer3D);
         illuminationTexture->GetResource()->CreateTexture(e_InternalPixelFormat_RGB8, e_PixelFormat_RGB, image->w, image->h, false, true, true, true);
         illuminationTexture->GetResource()->UpdateTexture(image, false, true);
-        surface->resourceMutex.unlock();
       }
     }
 
@@ -143,19 +153,18 @@ namespace blunted {
 
   void GraphicsGeometry_GeometryInterpreter::OnLoad(boost::intrusive_ptr<Geometry> geometry) {
 
-    // todo: rewrite that indices/usesIndices thing, it's very unclear what's going on
+
 
     //printf("loading %s\n", geometry->GetName().c_str());
 
     boost::intrusive_ptr < Resource<GeometryData> > resource = geometry->GetGeometryData();
 
-    resource->resourceMutex.lock();
     bool dynamicBuffer = resource->GetResource()->IsDynamic();
 
     bool alreadyThere = false;
-    // todo: use the resource mutex ??
+
     caller->vertexBuffer =
-      ResourceManagerPool::GetInstance().GetManager<VertexBuffer>(e_ResourceType_VertexBuffer)->
+      ResourceManagerPool::getVerticesManager()->
         Fetch(resource->GetIdentString(), false, alreadyThere, true); // false == don't try to use loader
     //printf("%s, %i\n", resource->GetIdentString().c_str(), alreadyThere);
 
@@ -164,18 +173,17 @@ namespace blunted {
 
     //std::vector<Triangle*> triangles;
 
-    float *vertices = 0;
+    std::vector<float> vertices;
     int verticesDataSize = 0;
     std::vector<unsigned int> indices;
     std::vector<unsigned int> indicesTest;
     int indicesSize = 0;
     if (!alreadyThere) {
-      caller->vertexBuffer->resourceMutex.lock();
       for (unsigned int i = 0; i < triangleMeshes.size(); i++) {
         verticesDataSize += triangleMeshes[i].verticesDataSize;
         indicesSize += triangleMeshes[i].indices.size();
       }
-      vertices = new float[verticesDataSize];
+      vertices.resize(verticesDataSize);
       indices.reserve(indicesSize);
     }
 
@@ -187,13 +195,8 @@ namespace blunted {
       // material
 
       const Material *material = &triangleMeshes.at(i).material;
-      boost::intrusive_ptr < Resource<Texture> > diffuseTexture;
-      boost::intrusive_ptr < Resource<Texture> > normalTexture;
-      boost::intrusive_ptr < Resource<Texture> > specularTexture;
-      boost::intrusive_ptr < Resource<Texture> > illuminationTexture;
-
       Renderer3DMaterial r3dMaterial;
-      LoadMaterials(renderer3D, material, r3dMaterial, diffuseTexture, normalTexture, specularTexture, illuminationTexture);
+      LoadMaterials(renderer3D, material, r3dMaterial);
 
 
       // mesh
@@ -237,33 +240,27 @@ namespace blunted {
       caller->vertexBufferIndices.push_back(vbIndex);
     }
 
-    resource->resourceMutex.unlock();
-
     if (indices.size() > 0) usesIndices = true; else usesIndices = false;
 
     if (!alreadyThere) {
       caller->vertexBuffer->GetResource()->SetTriangleMesh(vertices, verticesDataSize, indices);
       caller->vertexBuffer->GetResource()->CreateOrUpdateVertexBuffer(renderer3D, dynamicBuffer);
-      caller->vertexBuffer->resourceMutex.unlock();
     }
 
   }
 
   void GraphicsGeometry_GeometryInterpreter::OnUpdateGeometry(boost::intrusive_ptr<Geometry> geometry, bool updateMaterials) {
 
-    // todo: right now, you can only go from using no indices to using indices. you cannot go back to not using indices anymore. fix this.
-    // todo: rewrite that indices/usesIndices thing either way, it's very unclear what's going on
+
 
     boost::intrusive_ptr < Resource<GeometryData> > resource = geometry->GetGeometryData();
 
-    resource->resourceMutex.lock();
-
     bool dynamicBuffer = resource->GetResource()->IsDynamic();
-    std::vector < MaterializedTriangleMesh > triangleMeshes = resource->GetResource()->GetTriangleMeshes();
+    const std::vector < MaterializedTriangleMesh >& triangleMeshes = resource->GetResource()->GetTriangleMeshesRef();
     Renderer3D *renderer3D = caller->GetGraphicsScene()->GetGraphicsSystem()->GetRenderer3D();
 
-    caller->vertexBuffer->resourceMutex.lock();
-    float *vertices = 0;
+    std::vector<float> vertex_array;
+    float* vertices = nullptr;
     int currentVerticesDataSize = caller->vertexBuffer->GetResource()->GetVerticesDataSize();
 
     std::vector<unsigned int> indices;
@@ -279,9 +276,10 @@ namespace blunted {
     if (verticesDataSize == currentVerticesDataSize) {
       vertices = caller->vertexBuffer->GetResource()->GetTriangleMesh();
       newFloatData = false;
-      updateIndices = updateMaterials; // todo: can we decouple indices and materials in this function? now we need to update indices on material update and the other way around
+      updateIndices = updateMaterials;
     } else {
-      vertices = new float[verticesDataSize];
+      vertex_array.resize(verticesDataSize);
+      vertices = &vertex_array[0];
       newFloatData = true;
       updateIndices = true;
     }
@@ -322,13 +320,8 @@ namespace blunted {
         // material
 
         const Material *material = &triangleMeshes.at(i).material;
-        boost::intrusive_ptr < Resource<Texture> > diffuseTexture;
-        boost::intrusive_ptr < Resource<Texture> > normalTexture;
-        boost::intrusive_ptr < Resource<Texture> > specularTexture;
-        boost::intrusive_ptr < Resource<Texture> > illuminationTexture;
-
         Renderer3DMaterial r3dMaterial;
-        LoadMaterials(renderer3D, material, r3dMaterial, diffuseTexture, normalTexture, specularTexture, illuminationTexture);
+        LoadMaterials(renderer3D, material, r3dMaterial);
 
 
         // indices
@@ -357,17 +350,14 @@ namespace blunted {
 
     }
 
-    resource->resourceMutex.unlock();
-
     if (indices.size() > 0) usesIndices = true;
 
     if (newFloatData) {
-      caller->vertexBuffer->GetResource()->SetTriangleMesh(vertices, verticesDataSize, indices);
+      caller->vertexBuffer->GetResource()->SetTriangleMesh(vertex_array, verticesDataSize, indices);
     } else {
       caller->vertexBuffer->GetResource()->TriangleMeshWasUpdatedExternally(verticesDataSize, indices);
     }
     caller->vertexBuffer->GetResource()->CreateOrUpdateVertexBuffer(renderer3D, dynamicBuffer);
-    caller->vertexBuffer->resourceMutex.unlock();
   }
 
   void GraphicsGeometry_GeometryInterpreter::OnUnload() {
@@ -391,7 +381,7 @@ namespace blunted {
     //printf("size: %i\n", size);
     VertexBufferQueueEntry queueEntry;
 
-    queueEntry.vertexBufferIndices.insert(queueEntry.vertexBufferIndices.end(), caller->vertexBufferIndices.begin(), caller->vertexBufferIndices.end());
+    queueEntry.vertexBufferIndices = &caller->vertexBufferIndices;
 
     queueEntry.vertexBuffer = caller->vertexBuffer;
     queueEntry.position = caller->GetPosition();
@@ -402,7 +392,7 @@ namespace blunted {
   void GraphicsGeometry_GeometryInterpreter::OnSynchronize() {
     OnLoad(static_cast<Geometry*>(subjectPtr));
     //OnUpdateGeometry(static_cast<Geometry*>(subjectPtr));
-    // todo: implement properly
+
   }
 
   void GraphicsGeometry_GeometryInterpreter::OnPoke() {

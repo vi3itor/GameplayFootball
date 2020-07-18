@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -11,10 +24,11 @@
 
 #include "pagefactory.hpp"
 
-#include "blunted.hpp"
+#include "../blunted.hpp"
 
-#include <set>
 #include <boost/algorithm/string.hpp>
+#include <cmath>
+#include <set>
 
 using namespace blunted;
 
@@ -146,55 +160,33 @@ MainMenuPage::~MainMenuPage() {
 
 void MainMenuPage::GoControllerSelect() {
 
-  this->Exit();
-
   pageData.properties->Set("selectedButtonID", 0);
   Properties properties;
   properties.SetBool("isInGame", false);
   windowManager->GetPageFactory()->CreatePage((int)e_PageID_ControllerSelect, properties, 0);
-
-  delete this;
 }
 
 void MainMenuPage::GoLeague() {
-
-  this->Exit();
-
   pageData.properties->Set("selectedButtonID", 2);
   Properties properties;
   windowManager->GetPageFactory()->CreatePage((int)e_PageID_League_Start, properties, 0);
-
-  delete this;
 }
 
 void MainMenuPage::GoSettings() {
-
-  this->Exit();
-
   pageData.properties->Set("selectedButtonID", 4);
   Properties properties;
   windowManager->GetPageFactory()->CreatePage((int)e_PageID_Settings, properties, 0);
-
-  delete this;
 }
 
 void MainMenuPage::GoCredits() {
-  this->Exit();
-
   pageData.properties->Set("selectedButtonID", 5);
   Properties properties;
   windowManager->GetPageFactory()->CreatePage((int)e_PageID_Credits, properties, 0);
-
-  delete this;
 }
 
 void MainMenuPage::GoOutro() {
-  this->Exit();
-
   Properties properties;
   windowManager->GetPageFactory()->CreatePage((int)e_PageID_Outro, properties, 0);
-
-  delete this;
 }
 
 bool SortClubPlayersByAverageStat(const PlayerImport &a, const PlayerImport &b) {
@@ -300,7 +292,7 @@ void GetPlayerData(Database *namedb, const std::string &firstname, const std::st
     customProfile_ret =  "";
   }
 
-  if (skincolor_ret == 0)  skincolor_ret = int(round(random(1, 4)));
+  if (skincolor_ret == 0) skincolor_ret = int(std::round(random(1, 4)));
   if (hairstyle_ret == "") hairstyle_ret = "short01";
   if (haircolor_ret == "") haircolor_ret = "black";
   if (height_ret == 0.0f)  height_ret    = 1.8f;
@@ -829,13 +821,13 @@ bool MainMenuPage::GoImportDB() {
     std::string firstName;
     std::string lastName;
     // deprecated RenamePlayer(namedb, player.firstName, player.lastName, firstName, lastName);
-    int skinColor;
+    int skinColor = 0;
     std::string hairStyle;
     std::string hairColor;
-    float height;
-    float weight;
+    float height = 0.0f;
+    float weight = 0.0f;
     signed int formationOrder = -1;
-    float baseStatOffset;
+    float baseStatOffset = 0.0f;
     std::string customProfileXML;
     GetPlayerData(namedb, player.firstName, player.lastName, firstName, lastName, skinColor, hairStyle, hairColor, height, weight, formationOrder, baseStatOffset, customProfileXML);
     if (customProfileXML.size() > 0) statsString = customProfileXML;
@@ -926,7 +918,7 @@ bool MainMenuPage::GoImportDB() {
       iter = clubs.at(c).players.begin();
       advance(iter, 11);
       clubs.at(c).players.insert(iter, keepers.at(1));
-    } // (fuck the possible 3rd keeper and on hee hee)
+    }
 */
 
     // only keep the best

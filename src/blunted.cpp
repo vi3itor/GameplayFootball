@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -12,8 +25,6 @@
 #include "scene/objects/skybox.hpp"
 #include "scene/objects/light.hpp"
 #include "scene/objects/joint.hpp"
-#include "scene/objects/audioreceiver.hpp"
-#include "scene/objects/sound.hpp"
 
 #include "scene/objectfactory.hpp"
 
@@ -23,7 +34,6 @@
 #include "framework/scheduler.hpp"
 
 #include "managers/systemmanager.hpp"
-#include "managers/taskmanager.hpp"
 #include "managers/usereventmanager.hpp"
 #include "managers/environmentmanager.hpp"
 #include "managers/scenemanager.hpp"
@@ -38,41 +48,25 @@
 
 #include "loaders/aseloader.hpp"
 #include "loaders/imageloader.hpp"
-#include "loaders/wavloader.hpp"
 
-#include "utils/console.hpp"
-
-#include "SDL/SDL_ttf.h"
-
-namespace boost {
-  void assertion_failed(char const * expr, char const * function, char const * file, long line) {
-    char errorString[256];
-    sprintf(errorString, "%s @ line %li: %s %s\n", file, line, function, expr);
-    blunted::Log(blunted::e_FatalError, "boost", "assertion_failed", errorString);
-  }
-}
+#include "wrap_SDL_ttf.h"
 
 namespace blunted {
 
   ASELoader *aseLoader;
   ImageLoader *imageLoader;
-  WAVLoader *wavLoader;
-
   Scheduler *scheduler;
 
   SystemManager *systemManager;
-  TaskManager *taskManager;
   SceneManager *sceneManager;
   UserEventManager *userEventManager;
-  ResourceManagerPool *resourceManagerPool;
+  //ResourceManagerPool *resourceManagerPool;
 
   ObjectFactory *objectFactory;
 
   void RegisterObjectTypes(ObjectFactory* objectFactory);
 
   void Initialize(Properties &config) {
-
-    printf("INIT\n");
 
     LogOpen();
 
@@ -84,10 +78,6 @@ namespace blunted {
     new SystemManager();
     systemManager = SystemManager::GetInstancePtr();
 
-    new TaskManager();
-    taskManager = TaskManager::GetInstancePtr();
-    taskManager->Initialize();
-
     new SceneManager();
     sceneManager = SceneManager::GetInstancePtr();
 
@@ -97,43 +87,60 @@ namespace blunted {
     new UserEventManager();
     userEventManager = UserEventManager::GetInstancePtr();
 
-    new ResourceManagerPool();
-    resourceManagerPool = ResourceManagerPool::GetInstancePtr();
-
-
     // initialize resource managers
 
-    boost::shared_ptr < ResourceManager<GeometryData> > geometryDataResourceManager(new ResourceManager<GeometryData>("geometrydata"));
-    boost::shared_ptr < ResourceManager<Surface> > surfaceResourceManager(new ResourceManager<Surface>("surface"));
-    boost::shared_ptr < ResourceManager<SoundBuffer> > soundBufferResourceManager(new ResourceManager<SoundBuffer>("soundbuffer"));
-
-    ResourceManagerPool::GetInstance().RegisterManager(e_ResourceType_GeometryData, geometryDataResourceManager);
-    ResourceManagerPool::GetInstance().RegisterManager(e_ResourceType_Surface, surfaceResourceManager);
-    ResourceManagerPool::GetInstance().RegisterManager(e_ResourceType_SoundBuffer, soundBufferResourceManager);
-
     aseLoader = new ASELoader();
-    geometryDataResourceManager->RegisterLoader("ase", aseLoader);
+    ResourceManagerPool::getGeometryManager()->RegisterLoader("ase", aseLoader);
     imageLoader = new ImageLoader();
-    surfaceResourceManager->RegisterLoader("jpg", imageLoader);
-    surfaceResourceManager->RegisterLoader("png", imageLoader);
-    wavLoader = new WAVLoader();
-    soundBufferResourceManager->RegisterLoader("wav", wavLoader);
-
+    ResourceManagerPool::getSurfaceManager()->RegisterLoader("jpg", imageLoader);
+    ResourceManagerPool::getSurfaceManager()->RegisterLoader("png", imageLoader);
+    ResourceManagerPool::getSurfaceManager()->RegisterLoader("bmp", imageLoader);
     TTF_Init();
 
 
     // initialize scheduler
 
-    scheduler = new Scheduler(taskManager);
+    scheduler = new Scheduler();
 
     RegisterObjectTypes(objectFactory);
 
   }
 
-  void Run() {
-    printf("RUN\n");
+  void PollEvent() {
+    SDL_Event event;
+    if (!SDL_PollEvent(&event)) {
+      return;
+    }
+    switch (event.type) {
+      case SDL_QUIT:
+        EnvironmentManager::GetInstance().SignalQuit();
+        break;
 
+      case SDL_KEYDOWN:
+        switch(event.key.keysym.sym) {
+          case SDLK_F12:
+            EnvironmentManager::GetInstance().SignalQuit();
+            break;
+          default:
+            break;
+        }
+        break;
+      default:
+        break;
+    }
+    UserEventManager::GetInstance().InputSDLEvent(event);
+  }
+
+  void DoStep() {
+    PollEvent();
     scheduler->Run();
+  }
+
+  void Run() {
+    while (!EnvironmentManager::GetInstance().GetQuit()) {
+      PollEvent();
+      scheduler->Run();
+    }
 
     // stop signaling systems
     // also clears links to user tasks
@@ -148,27 +155,16 @@ namespace blunted {
   }
 
   void Exit() {
-    printf("EXIT\n");
-
     Log(e_Notice, "blunted", "Exit", "exiting scenemanager");
     SceneManager::GetInstance().Exit();
 
     objectFactory->Exit();
     objectFactory->Destroy();
 
-    Log(e_Notice, "blunted", "Exit", "exiting resourcemanagerpool");
-    ResourceManagerPool::GetInstance().Exit();
-    Log(e_Notice, "blunted", "Exit", "deleting resourcemanagerpool");
-    ResourceManagerPool::GetInstance().Destroy();
-
-    TaskManager::GetInstance().EmptyQueue();
-
     delete aseLoader;
     delete imageLoader;
-    delete wavLoader;
     aseLoader = 0;
     imageLoader = 0;
-    wavLoader = 0;
 
     Log(e_Notice, "blunted", "Exit", "exiting systemmanager");
     SystemManager::GetInstance().Exit();
@@ -176,9 +172,7 @@ namespace blunted {
     SystemManager::GetInstance().Destroy();
 
     Log(e_Notice, "blunted", "Exit", "exiting taskmanager");
-    TaskManager::GetInstance().Exit();
     Log(e_Notice, "blunted", "Exit", "destroying taskmanager");
-    TaskManager::GetInstance().Destroy();
 
     Log(e_Notice, "blunted", "Exit", "destroying scenemanager");
     SceneManager::GetInstance().Destroy();
@@ -187,10 +181,6 @@ namespace blunted {
     UserEventManager::GetInstance().Exit();
     Log(e_Notice, "blunted", "Exit", "destroying usereventmanager");
     UserEventManager::GetInstance().Destroy();
-
-    printf("READY\n");
-
-    EnvironmentManager::GetInstance().Pause_ms(1000);
     EnvironmentManager::GetInstance().Destroy();
 
     TTF_Quit();
@@ -215,10 +205,6 @@ namespace blunted {
     objectFactory->RegisterPrototype(e_ObjectType_Light, light);
     boost::intrusive_ptr<Joint> joint(new Joint("Joint prototype"));
     objectFactory->RegisterPrototype(e_ObjectType_Joint, joint);
-    boost::intrusive_ptr<AudioReceiver> audioReceiver(new AudioReceiver("AudioReceiver prototype"));
-    objectFactory->RegisterPrototype(e_ObjectType_AudioReceiver, audioReceiver);
-    boost::intrusive_ptr<Sound> sound(new Sound("Sound prototype"));
-    objectFactory->RegisterPrototype(e_ObjectType_Sound, sound);
   }
 
 }

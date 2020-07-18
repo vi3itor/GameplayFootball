@@ -1,3 +1,16 @@
+// Copyright 2019 Google LLC & Bastiaan Konings
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // written by bastiaan konings schuiling 2008 - 2014
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
@@ -7,14 +20,7 @@
 
 #include "interface_renderer3d.hpp"
 
-#ifdef __linux__
-#include <GL/glxew.h>
-#endif
-
-#include <SDL/SDL_image.h>
-#ifdef WIN32
-#include <SDL/SDL_syswm.h>
-#endif
+#include <GLee.h>
 
 namespace blunted {
 
@@ -22,6 +28,7 @@ namespace blunted {
 
     public:
       OpenGLRenderer3D();
+      virtual const screenshoot& GetScreen();
       virtual ~OpenGLRenderer3D();
 
       virtual void SwapBuffers();
@@ -64,7 +71,7 @@ namespace blunted {
       virtual Matrix4 CreateOrthoMatrix(float left, float right, float bottom, float top, float nearCap = -1, float farCap = -1);
 
       // vertex buffers
-      virtual VertexBufferID CreateVertexBuffer(float *vertices, unsigned int verticesDataSize, std::vector<unsigned int> indices, e_VertexBufferUsage usage);
+      virtual VertexBufferID CreateVertexBuffer(float *vertices, unsigned int verticesDataSize, const std::vector<unsigned int>& indices, e_VertexBufferUsage usage);
       virtual void UpdateVertexBuffer(VertexBufferID vertexBufferID, float *vertices, unsigned int verticesDataSize);
       virtual void DeleteVertexBuffer(VertexBufferID vertexBufferID);
       virtual void RenderVertexBuffer(const std::deque<VertexBufferQueueEntry> &vertexBufferQueue, e_RenderMode renderMode = e_RenderMode_Full);
@@ -127,29 +134,29 @@ namespace blunted {
       void operator()();
 
     protected:
-      SDL_Surface *context;
+      SDL_GLContext context;
+      SDL_Window* window;
       int context_width, context_height, context_bpp;
-      bool contextIsActive;
 
-      float cameraNear;
-      float cameraFar;
+      float cameraNear = 0.0f;
+      float cameraFar = 0.0f;
 
-      int noiseTexID;
+      int noiseTexID = 0;
 
-      float FOV;
+      float FOV = 0.0f;
 
-      float overallBrightness;
+      float overallBrightness = 0.0f;
 
-      GLfloat largest_supported_anisotropy;
+      GLfloat largest_supported_anisotropy = 0.0f;
 
       std::map<std::string, GLint> uniformCache;
 
       std::map<int, int> VBOPingPongMap;
       std::map<int, int> VAOPingPongMap;
       std::map<int, int> VAOReadIndex;
-      std::map<int, GLsync> VAOfence;
 
-      signed int _cache_activeTextureUnit;
+      signed int _cache_activeTextureUnit = 0;
+      screenshoot last_screen_;
 
   };
 
