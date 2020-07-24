@@ -431,7 +431,7 @@ void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int r
   // generate sine
   float noiseFactor = 0.15; // 'random grid of canals'
   float sinScale = 4.0f; // smaller is larger (heh)
-  float ynoise[perlinTexH];
+  std::vector<float> ynoise(perlinTexH);
   for (int y = 0; y < perlinTexH; y++) {
     ynoise[y] = (sin(y / (float)perlinTexH * 13 * sinScale) + sin(y / (float)perlinTexH * 43 * sinScale) + sin(y / (float)perlinTexH * 107 * sinScale) + sin(y / (float)perlinTexH * 245 * sinScale)) * 0.25f;
   }

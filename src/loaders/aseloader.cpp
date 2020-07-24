@@ -164,8 +164,8 @@ namespace blunted {
         MESH_VERTEX 0 0.000 500.000 0.000
         ..
     */
-
-    Vector3 vertex_cache[numvertex];
+ 	
+    std::vector<Vector3> vertex_cache(numvertex);
 
     if (tree_mesh_vertex_list->entries.size() != (unsigned int)numvertex) Log(e_FatalError, "ASELoader", "BuildTriangleMesh", "numvertex and tree_mesh_vertex_list->entries.size() differ! Loader corrupt?");
 
@@ -276,7 +276,7 @@ namespace blunted {
     */
 
     if (numtvertex > 0) {
-      Vector3 tvertex_cache[numtvertex];
+      std::vector<Vector3> tvertex_cache(numtvertex);
 
       if (tree_mesh_tvertex_list->entries.size() != (unsigned int)numtvertex) Log(e_FatalError, "ASELoader", "BuildTriangleMesh", "numtvertex and tree_mesh_tvertex_list->entries.size() differ! Loader corrupt?");
 

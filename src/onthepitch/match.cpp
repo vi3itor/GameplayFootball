@@ -376,7 +376,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
 
   int maxTestLights = 0;
   if (maxTestLights > 0) {
-    boost::intrusive_ptr<Light> lightTest[maxTestLights];
+    std::vector<boost::intrusive_ptr<Light>> lightTest(maxTestLights);
     for (int li = 0; li < maxTestLights; li++) {
       lightTest[li] = static_pointer_cast<Light>(ObjectFactory::GetInstance().CreateObject("testLight #" + int_to_str(li), e_ObjectType_Light));
       scene3D->CreateSystemObjects(lightTest[li]);

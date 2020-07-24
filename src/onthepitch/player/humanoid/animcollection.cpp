@@ -557,8 +557,8 @@ void AnimCollection::CrudeSelection(DataSet &dataSet, const CrudeSelectionQuery 
             if (FloatToEnumVelocity(animOutgoingVelocityFloat) == e_Velocity_Dribble) animOutgoingVelocityFloat = walkVelocity;
             if (FloatToEnumVelocity(queryVelocityFloat) == e_Velocity_Dribble) queryVelocityFloat = walkVelocity;
 
-            if (animIncomingVelocityFloat > std::max(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
-            if (animIncomingVelocityFloat < std::min(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
+            if (animIncomingVelocityFloat > (std::max)(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
+            if (animIncomingVelocityFloat < (std::min)(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
           }
 
         } else {
@@ -1125,7 +1125,7 @@ void SmoothPositions(Animation *animation, bool convertAngledDribbleToWalk) {
   float power; // dud
 
   // backup previous positions
-  Vector3 origPositions[animation->GetFrameCount()];
+  std::vector<Vector3> origPositions(animation->GetFrameCount());
   for (int frame = 1; frame < animation->GetFrameCount(); frame++) {
     animation->GetKeyFrame("player", frame, orientation, origPositions[frame]);
   }

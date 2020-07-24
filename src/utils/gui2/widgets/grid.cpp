@@ -144,8 +144,8 @@ namespace blunted {
 
     // all sizes are in percentages
 
-    float widths[cols + 1];
-    float heights[rows + 1];
+    std::vector<float> widths(cols + 1);
+    std::vector<float> heights(rows + 1);
     memset(&widths[0], 0, sizeof(float) * cols);
     memset(&heights[0], 0, sizeof(float) * rows);
 

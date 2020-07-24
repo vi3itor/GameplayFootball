@@ -47,12 +47,11 @@ int CreateNewLeagueSave(const std::string &srcDbName, const std::string &saveNam
 
   if (errorCode == 0) {
     database = GetDB();
-    if (!database->Load(dest.string() + "/autosave.sqlite")) {
+    if (database != nullptr && !database->Load(dest.string() + "/autosave.sqlite")) {
       errorCode = 3; // could not open database
+      return errorCode;
     }
-  }
-
-  if (errorCode == 0) {
+  	
     std::vector<std::string> imageList;
     DatabaseResult *result = database->Query("select logo_url, kit_url from teams");
     for (unsigned int r = 0; r < result->data.size(); r++) {

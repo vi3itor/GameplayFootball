@@ -5,6 +5,7 @@
 #include "aabb.hpp"
 
 #include <climits>
+#include <algorithm>
 #include <cmath>
 
 namespace blunted {

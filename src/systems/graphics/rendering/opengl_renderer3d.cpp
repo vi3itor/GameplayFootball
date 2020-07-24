@@ -17,7 +17,6 @@
 
 #include "opengl_renderer3d.hpp"
 
-#include <GL/gl.h>
 #include <SDL2/SDL.h>
 
 #include "base/log.hpp"
@@ -33,9 +32,6 @@
 
 #include "../resources/texture.hpp"
 
-#ifdef WIN32
-#include <wingdi.h>
-#endif
 
 namespace blunted {
 
@@ -422,48 +418,48 @@ struct GLfunctions {
     if (!higherThan32) Log(e_Warning, "OpenGLRenderer3D", "CreateContext", "OpenGL version not equal to or higher than 3.2 (or not reported as such)");
 
 #ifdef WIN32
-    SDL_VERSION(&wmInfo.version);
-    if (SDL_GetWMInfo(&wmInfo)) {
+    //SDL_VERSION(&wmInfo.version);
+    //if (SDL_GetWindowWMInfo(&wmInfo)) {
 
-      HWND hWnd = wmInfo.window;
-      // center window
-      // todo: needs linux version for centering as well. not sure how. find out.
-      if (!fullscreen) {
-        //#undef _WIN32_WINNT
-        //#define _WIN32_WINNT 0x0500
-        //#undef WINVER
-        //#define WINVER 0x0500
-        //#include <windows.h>
-        //#include <winuser.h>
-        HMONITOR mon = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
-        MONITORINFO monInfo;
-        monInfo.cbSize = sizeof(MONITORINFO);
-        bool getMonInfo = GetMonitorInfo(mon, &monInfo);
-        if (getMonInfo != 0) {
-          RECT rect = monInfo.rcWork;
-          int xSize = rect.right - rect.left;
-          int xCenter = rect.left + (xSize * 0.5f);
-          int ySize = rect.bottom - rect.top;
-          int yCenter = rect.top + (ySize * 0.5f);
-          int xWin = xCenter - (width * 0.5f);
-          int yWin = yCenter - (height * 0.5f);
-          xWin = std::max(xWin, 0); // super annoying to have a window's controls being unreachable
-          yWin = std::max(yWin, 0);
-          xWin -= 3; // window border size (educated guess - is a user setting, after all)
-          yWin -= 12; // window border size + taskbar (educated guess - is a user setting, after all)
-          SetWindowPos(hWnd, NULL, xWin, yWin, 0, 0, SWP_NOSIZE);
-        }
-        //SetWindowPos(hWnd, NULL, 976, 0, 0, 0, SWP_NOSIZE);
-      }
+    //  HWND hWnd = wmInfo.window;
+    //  // center window
+    //  // todo: needs linux version for centering as well. not sure how. find out.
+    //  if (!fullscreen) {
+    //    //#undef _WIN32_WINNT
+    //    //#define _WIN32_WINNT 0x0500
+    //    //#undef WINVER
+    //    //#define WINVER 0x0500
+    //    //#include <windows.h>
+    //    //#include <winuser.h>
+    //    HMONITOR mon = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+    //    MONITORINFO monInfo;
+    //    monInfo.cbSize = sizeof(MONITORINFO);
+    //    bool getMonInfo = GetMonitorInfo(mon, &monInfo);
+    //    if (getMonInfo != 0) {
+    //      RECT rect = monInfo.rcWork;
+    //      int xSize = rect.right - rect.left;
+    //      int xCenter = rect.left + (xSize * 0.5f);
+    //      int ySize = rect.bottom - rect.top;
+    //      int yCenter = rect.top + (ySize * 0.5f);
+    //      int xWin = xCenter - (width * 0.5f);
+    //      int yWin = yCenter - (height * 0.5f);
+    //      xWin = std::max(xWin, 0); // super annoying to have a window's controls being unreachable
+    //      yWin = std::max(yWin, 0);
+    //      xWin -= 3; // window border size (educated guess - is a user setting, after all)
+    //      yWin -= 12; // window border size + taskbar (educated guess - is a user setting, after all)
+    //      SetWindowPos(hWnd, NULL, xWin, yWin, 0, 0, SWP_NOSIZE);
+    //    }
+    //    //SetWindowPos(hWnd, NULL, 976, 0, 0, 0, SWP_NOSIZE);
+    //  }
 
-      //HDC hDC = GetDC(wmInfo.window);
-      //wglMakeCurrent(hDC, wmInfo.hglrc);
-    }
+    //  //HDC hDC = GetDC(wmInfo.window);
+    //  //wglMakeCurrent(hDC, wmInfo.hglrc);
+    //  }
 #endif
 
 #ifdef WIN32
     bool success = false;//wglSwapIntervalEXT(-1);
-    if (!success) wglSwapIntervalEXT(1);
+    //if (!success) wglSwapIntervalEXT(1);
     //if (!success) printf("ANTI TEAR NOT SUPPORTED\n\n\n\n\n");
 #endif
 
@@ -1755,11 +1751,11 @@ struct GLfunctions {
   // render targets
 
   void OpenGLRenderer3D::SetRenderTargets(std::vector<e_TargetAttachment> targetAttachments) {
-    GLenum targets[targetAttachments.size()];
+    std::vector<GLenum> targets(targetAttachments.size());
     for (int i = 0; i < (signed int)targetAttachments.size(); i++) {
       targets[i] = GetGLTargetAttachment(targetAttachments.at(i));
     }
-    mapping.glDrawBuffers(targetAttachments.size(), targets);
+    mapping.glDrawBuffers(targetAttachments.size(), &targets[0]);
   }
 
 
@@ -1833,8 +1829,8 @@ struct GLfunctions {
     if (!usePrecalculatedSet || kernelSize != 32) {
       unsigned int candidateSize = 32;
 
-      Vector3 samples[kernelSize];
-      Vector3 candidates[candidateSize];
+      std::vector<Vector3> samples(kernelSize);
+      std::vector<Vector3> candidates(candidateSize);
 
       for (unsigned int i = 0; i < kernelSize; i++) {
 
@@ -1894,7 +1890,7 @@ struct GLfunctions {
 
     } else { // PRECALCULATED SET
 
-      Vector3 samples[kernelSize];
+      std::vector<Vector3> samples(kernelSize);
 
       // these samples seem relatively close to z = 0 (much 'ground effect' on flat surface)
       samples[0].Set(-0.164502, 0.198563, 0.847836);
@@ -2030,7 +2026,7 @@ struct GLfunctions {
 
       unsigned int kernelSize = 32;
       //SetUniformInt("ambient", "SSAO_kernelSize", kernelSize);
-      float SSAO_kernel[kernelSize * 3];
+      std::vector<float> SSAO_kernel(kernelSize * 3);
       GeneratePoissonKernel(&SSAO_kernel[0], kernelSize);
       SetUniformFloat3Array("ambient", "SSAO_kernel", kernelSize, &SSAO_kernel[0]);
     }
