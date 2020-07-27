@@ -59,8 +59,6 @@ struct GLfunctions {
   };
 
   OpenGLRenderer3D::~OpenGLRenderer3D() {
-    DeleteSimpleVertexBuffer(overlayBuffer);
-    DeleteSimpleVertexBuffer(quadBuffer);
   };
 
   void OpenGLRenderer3D::SwapBuffers() {
@@ -295,6 +293,7 @@ struct GLfunctions {
 
   void OpenGLRenderer3D::DeleteSimpleVertexBuffer(VertexBufferID vertexBufferID) {
     GLuint glVertexBufferID = vertexBufferID.bufferID;
+    //Log(e_Notice, "OpenGLRenderer3D", "DeleteSimpleVertexBuffer", "Deleting simple vertex buffer, id " + int_to_str(vertexBufferID.bufferID));
     mapping.glDeleteBuffers(1, &glVertexBufferID);
 
     GLuint glVertexArrayID = vertexBufferID.vertexArrayID;
@@ -531,6 +530,9 @@ struct GLfunctions {
     }
 
     currentShader = shaders.end();
+
+    DeleteSimpleVertexBuffer(overlayBuffer);
+    DeleteSimpleVertexBuffer(quadBuffer);
 
     // assert(views.size() == 0);
     // todo: make views erase-able, as for now a views vector index is used when requesting views, which prohibits erasion
@@ -1017,6 +1019,7 @@ struct GLfunctions {
   }
 
   void OpenGLRenderer3D::DeleteVertexBuffer(VertexBufferID vertexBufferID) {
+    //Log(e_Notice, "OpenGLRenderer3D", "DeleteVertexBuffer", "Deleting vertex buffer, id " + int_to_str(vertexBufferID.bufferID));
     GLuint glVertexBufferID = vertexBufferID.bufferID;
     mapping.glDeleteBuffers(1, &glVertexBufferID);
 
