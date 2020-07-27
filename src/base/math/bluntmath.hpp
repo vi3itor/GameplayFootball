@@ -33,7 +33,7 @@ namespace blunted {
 
   inline void fastrandomseed() {
     fastrandseed = static_cast<unsigned int>(std::time(0));
-    max_uint = (std::numeric_limits<unsigned int>::max)();
+    max_uint = std::numeric_limits<unsigned int>::max();
   }
 
   inline real fastrandom(real min, real max) {

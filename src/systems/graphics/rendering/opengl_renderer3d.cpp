@@ -20,6 +20,10 @@
 #include <GL/gl.h>
 //#include <GL/glcorearb.h>  // can be used to check for core profile only
 
+#ifdef WIN32
+#include <SDL2/SDL_opengl_glext.h>
+#endif
+
 #include <cmath>
 #include <SDL2/SDL.h>
 

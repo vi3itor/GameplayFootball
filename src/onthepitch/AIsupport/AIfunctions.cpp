@@ -617,7 +617,7 @@ TimeNeeded AI_GetTimeNeededForDistance_ms(const Vector3 &playerPos, const Vector
   }
 
   if (maxTime_ms != -1 && currentTime_ms > (unsigned int)maxTime_ms) {
-    result.usual_ms = (std::max)(defaultOptimizedTime_ms, (currentTime_ms + 100) * 2);
+    result.usual_ms = std::max(defaultOptimizedTime_ms, (currentTime_ms + 100) * 2);
     if (!foundOptimisticTime) result.optimistic_ms = result.usual_ms;
     return result;
   }

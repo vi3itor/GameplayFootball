@@ -305,7 +305,7 @@ namespace blunted {
         if (dueEntry.program != boost::shared_ptr<TaskSequenceProgram>()) {
           // wait until time for due sequence entry (even if that is <= 0, because we need to unlock the condition and sequences locks anyway)
           timeout_ms = dueEntry.timeUntilDueEntry_ms;
-          timeout_ms = (std::max)(timeout_ms, (long)0);
+          timeout_ms = std::max(timeout_ms, (long)0);
         } else {
           timeout_ms = 100; // wait for wakeup signal
         }

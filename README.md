@@ -37,6 +37,28 @@ Run the game:
 ./gameplayfootball
 ```
 
+### Windows (In progress)
+1) Install Visual Studio 2019
+2) Install CMake
+3) Install vcpkg
+4) Install dependencies using vcpkg (all triplets must be x86-windows)
+```
+.\vcpkg.exe install boost:x86-windows sdl2 sdl2-image[libjpeg-turbo] sdl2-ttf sdl2-gfx opengl openal-soft
+```
+
+5) : 
+```
+mkdir build
+cd build 
+cmake .. -DCMAKE_GENERATOR_PLATFORM=Win32 -DCMAKE_TOOLCHAIN_FILE=C:/repo/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE
+# For debug build
+cmake --build . --parallel
+# For release build: 
+cmake --build . --parallel --config Release
+```
+Copy everything from `data` inside debug/release directory
+
+Run `gameplayfootball.exe`
 
 ### Donate
 If you want to thank Bastiaan for his great work, consider a donation to his Bitcoin address 1JHnTe2QQj8RL281fXFiyvK9igj2VhPh2t

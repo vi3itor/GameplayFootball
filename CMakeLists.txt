@@ -11,7 +11,7 @@ else(${VERSION_PATCH})
    set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR})
 endif(${VERSION_PATCH})
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
+#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 
 project(GameplayFootball)
 
@@ -33,13 +33,13 @@ include_directories(${OPENGL_INCLUDE_DIR})
 FIND_PACKAGE(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIR})
 
-FIND_PACKAGE(SDL2_image REQUIRED)
+FIND_PACKAGE(SDL2-image REQUIRED)
 include_directories(${SDL2_IMAGE_DIRS})
 
-FIND_PACKAGE(SDL2_ttf REQUIRED)
+FIND_PACKAGE(SDL2-ttf REQUIRED)
 include_directories(${SDL2_TTF_DIRS})
 
-FIND_PACKAGE(SDL2_gfx REQUIRED)
+FIND_PACKAGE(SDL2-gfx REQUIRED)
 include_directories(${SDL2_GFX_DIRS})
 
 FIND_PACKAGE(Boost REQUIRED COMPONENTS system thread filesystem)
@@ -96,9 +96,9 @@ add_library(menulib ${MENU_SOURCES} ${MENU_HEADERS})
 add_library(datalib ${DATA_SOURCES} ${DATA_HEADERS})
 
 set(LIBRARIES gamelib hidlib menulib datalib leaguelib blunted2
-   ${Boost_LIBRARIES}
-   ${SDL2_IMAGE_LIBRARIES} ${SDL2_TTF_LIBRARIES} ${SDL2_GFX_LIBRARIES}
-   ${SDL2_LIBRARIES} ${OPENAL_LIBRARY} dl m ${OPENGL_LIBRARIES})
+   ${Boost_LIBRARIES} SDL2::SDL2 SDL2::SDL2main SDL2::SDL2_image SDL2::SDL2_ttf SDL2::SDL2_gfx
+   ${OPENAL_LIBRARY} ${OPENGL_LIBRARY})
+
 
 add_executable(gameplayfootball WIN32 ${CORE_SOURCES} ${CORE_HEADERS})
 target_link_libraries(gameplayfootball ${LIBRARIES})

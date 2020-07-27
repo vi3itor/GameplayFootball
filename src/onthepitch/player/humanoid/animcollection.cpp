@@ -80,7 +80,7 @@ AnimCollection::AnimCollection(boost::shared_ptr<Scene3D> scene3D) : scene3D(sce
 
     for (int angleID = 0; angleID < 11; angleID++) {
 
-      radian angle;
+      radian angle = 0;
       if      (angleID == 0)  angle = pi / 180.0f *    0.0f;
       else if (angleID == 1)  angle = pi / 180.0f *   20.0f;
       else if (angleID == 2)  angle = pi / 180.0f *   45.0f;
@@ -91,7 +91,8 @@ AnimCollection::AnimCollection(boost::shared_ptr<Scene3D> scene3D) : scene3D(sce
       else if (angleID == 7)  angle = pi / 180.0f *  -45.0f;
       else if (angleID == 8)  angle = pi / 180.0f *  -90.0f;
       else if (angleID == 9)  angle = pi / 180.0f * -135.0f;
-      //else if (angleID == 10) angle = pi / 180.0f * -179.0f;
+      // VK: TODO check why it was commented out
+      else if (angleID == 10) angle = pi / 180.0f * -179.0f;
 
       Quadrant quadrant;
       quadrant.id = id;
@@ -557,8 +558,8 @@ void AnimCollection::CrudeSelection(DataSet &dataSet, const CrudeSelectionQuery 
             if (FloatToEnumVelocity(animOutgoingVelocityFloat) == e_Velocity_Dribble) animOutgoingVelocityFloat = walkVelocity;
             if (FloatToEnumVelocity(queryVelocityFloat) == e_Velocity_Dribble) queryVelocityFloat = walkVelocity;
 
-            if (animIncomingVelocityFloat > (std::max)(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
-            if (animIncomingVelocityFloat < (std::min)(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
+            if (animIncomingVelocityFloat > std::max(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
+            if (animIncomingVelocityFloat < std::min(queryVelocityFloat, animOutgoingVelocityFloat)) selectAnim = false;
           }
 
         } else {

@@ -9,14 +9,6 @@
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|x64">
-      <Configuration>Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\base\exception.cpp" />
@@ -92,8 +84,6 @@
     <ClCompile Include="src\menu\widgets\planmap.cpp" />
     <ClCompile Include="src\misc\hungarian.c" />
     <ClCompile Include="src\misc\perlin.cpp" />
-    <ClCompile Include="src\misc\shell.c" />
-    <ClCompile Include="src\misc\sqlite3.c" />
     <ClCompile Include="src\onthepitch\AIsupport\AIfunctions.cpp" />
     <ClCompile Include="src\onthepitch\AIsupport\mentalimage.cpp" />
     <ClCompile Include="src\onthepitch\ball.cpp" />
@@ -155,9 +145,7 @@
     <ClCompile Include="src\systems\graphics\objects\graphics_geometry.cpp" />
     <ClCompile Include="src\systems\graphics\objects\graphics_light.cpp" />
     <ClCompile Include="src\systems\graphics\objects\graphics_overlay2d.cpp" />
-    <ClCompile Include="src\systems\graphics\rendering\opengl_renderer3d.cpp">
-      <DisableLanguageExtensions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</DisableLanguageExtensions>
-    </ClCompile>
+    <ClCompile Include="src\systems\graphics\rendering\opengl_renderer3d.cpp" />
     <ClCompile Include="src\systems\graphics\rendering\r3d_messages.cpp" />
     <ClCompile Include="src\systems\graphics\resources\texture.cpp" />
     <ClCompile Include="src\systems\graphics\resources\vertexbuffer.cpp" />
@@ -281,8 +269,6 @@
     <ClInclude Include="src\menu\widgets\planmap.hpp" />
     <ClInclude Include="src\misc\hungarian.h" />
     <ClInclude Include="src\misc\perlin.h" />
-    <ClInclude Include="src\misc\sqlite3.h" />
-    <ClInclude Include="src\misc\sqlite3ext.h" />
     <ClInclude Include="src\onthepitch\AIsupport\AIfunctions.hpp" />
     <ClInclude Include="src\onthepitch\AIsupport\mentalimage.hpp" />
     <ClInclude Include="src\onthepitch\ball.hpp" />
@@ -478,14 +464,20 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NOMINMAX ;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)src;$(SHAREDLIBS_ROOT)/boost_1_72_0;$(SolutionDir)libs\include</AdditionalIncludeDirectories>
       <DisableLanguageExtensions>false</DisableLanguageExtensions>
+      <DisableSpecificWarnings>
+      </DisableSpecificWarnings>
+      <ObjectFileName>$(IntDir)%(RelativeDir)/</ObjectFileName>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)libs\lib;$(SHAREDLIBS_ROOT)/boost_1_72_0/stage/lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SDL2.lib;SDL2_gfx.lib;SDL2_image.lib;SDL2_ttf.lib;SDL2main.lib;OpenAL32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -494,14 +486,21 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>$(SolutionDir)src;$(SHAREDLIBS_ROOT)/boost_1_72_0;$(SolutionDir)libs\include</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)%(RelativeDir)/</ObjectFileName>
+      <DisableSpecificWarnings>
+      </DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)libs\lib;$(SHAREDLIBS_ROOT)/boost_1_72_0/stage/lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SDL2.lib;SDL2_gfx.lib;SDL2_image.lib;SDL2_ttf.lib;SDL2main.lib;OpenAL32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

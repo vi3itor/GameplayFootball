@@ -676,7 +676,7 @@ template <typename T> T TemporalSmoother<T>::GetValue(unsigned long currentTime_
   if (value1.time_ms == 0) return value2.data;
   if (value2.time_ms == 0) return value1.data;
 
-  float bias = NormalizedClamp(targetTime_ms, value1.time_ms, (std::max)(value2.time_ms, value1.time_ms + 1));
+  float bias = NormalizedClamp(targetTime_ms, value1.time_ms, std::max(value2.time_ms, value1.time_ms + 1));
   if (debug) printf("bias: %f\n", bias);
   //unsigned long time_ms = EnvironmentManager::GetInstance().GetTime_ms();
   //int diff = value2.time_ms - value1.time_ms;
