@@ -36,6 +36,7 @@
 
 #include "SDL2/SDL_ttf.h"
 
+// VK: TODO Update sqlite3
 #include "libs/sqlite3/sqlite3.h"
 
 #if defined(WIN32) && defined(__MINGW32__)

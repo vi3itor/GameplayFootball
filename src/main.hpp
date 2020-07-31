@@ -68,6 +68,9 @@ int PredictFrameTimeToGo_ms(int frameCount);
 
 const std::vector<IHIDevice*> &GetControllers();
 
+// VK: TODO Process MinGW correctly (see main.cpp for hints)
+#ifndef WIN32
 int main(int argc, char** argv);
+#endif
 
 #endif
