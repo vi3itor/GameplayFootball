@@ -1219,42 +1219,19 @@ GraphicsPage::GraphicsPage(Gui2WindowManager *windowManager, const Gui2PageData 
     if (res.bpp == 32) if (!CheckDuplicate(resolutions, res.x, res.y)) resolutions.push_back(res);
   }
 #else
-  SDL_PixelFormat format;
-  SDL_Rect **modes;
-  int loops(0);
-  int bpp(0);
-  for (int loops = 0; loops < 3; loops++) {
-    switch(loops) {
-      case 0://32 bpp
-        format.BitsPerPixel = 32;
-        bpp = 32;
-        break;
-      case 1://24 bpp
-        format.BitsPerPixel = 24;
-        bpp = 24;
-        break;
-      case 2://16 bpp
-        format.BitsPerPixel = 16;
-        bpp = 16;
-        break;
-    }
-
-    // VK: TODO: Use SDL2 calls to get available modes for the display
-    //
-    //get available fullscreen/hardware modes
-    //modes = SDL_ListModes(&format, SDL_FULLSCREEN);
-    //if (modes) {
-      //for(int i = 0; modes[i]; ++i) {
+    int display = 0;
+    int modes = SDL_GetNumDisplayModes(display);
+    for (int i = 0; i < modes; ++i) {
+        SDL_DisplayMode mode = { SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0 };
+        SDL_GetDisplayMode(display, i, &mode);
         Resolution res;
-        res.x = 1280;//modes[i]->w;
-        res.y = 1024;//modes[i]->h;
-        res.bpp = 32;//bpp;
+        res.x = mode.w;
+        res.y = mode.h;
+        res.bpp = SDL_BITSPERPIXEL(mode.format);
         res.fullscreen = false;
-        //if (res.bpp == 32) if (!CheckDuplicate(resolutions, res.x, res.y))
+        if (!CheckDuplicate(resolutions, res.x, res.y))
         resolutions.push_back(res);
-      //}
-    //}
-  }
+    }
 #endif
 
   // add fullscreen res'es
