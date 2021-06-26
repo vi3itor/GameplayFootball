@@ -25,7 +25,10 @@ if(UNIX)
 endif(UNIX)
 
 if(MSVC)
-   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -LTCG")
+   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
+   if(CMAKE_BUILD_TYPE STREQUAL "Release")
+      set_target_properties(GameplayFootball PROPERTIES LINK_FLAGS "$<$<CONFIG:Release>:/LTCG>")
+   endif()
 endif(MSVC)
 
 # SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS} -fPIC -g -O3")
