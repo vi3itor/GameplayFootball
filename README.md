@@ -111,7 +111,7 @@ Build project
 - Start `Visual Studio`, then click `File > Open > Folder...`
 - Navigate to the `GameplayFootball` project folder, and click `Select Folder`
 - Select `x86-Debug` or `x86-ReleaseDebugSymbol` and `x86-Release` mode in [Manage Configurations...](https://docs.microsoft.com/en-us/visualstudio/ide/understanding-build-configurations?view=vs-2019#solution-configurations)
-- Click `gameplayfootball.exe` to start build game
+- Click `gameplayfootball.exe` in [Select startup item...](https://docs.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio?view=msvc-160#debugging-cmake-projects) to start build game
 - After build success, game will start but it close immediately, because it missing data. Now go to step copy data to game
 
 To copy data to game, switch back to Command Prompt window
