@@ -67,12 +67,11 @@ make -j$(nproc)
 ./gameplayfootball
 ```
 
-
-
-### Windows (Work in Progress)
+### Windows - Support Debugging and Profiling game (Work in Progress) 
 
 Download and install:
-- [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/),
+- [Visual Studio 2019 with Desktop development with C++](https://visualstudio.microsoft.com/downloads/),
+- [C++ CMake tools for Windows](https://docs.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio?view=msvc-160),
 - [Git](https://git-scm.com/download/win),
 - [CMake](https://cmake.org/download/) (make sure to add it to the system PATH).
 
@@ -87,12 +86,15 @@ git clone https://github.com/microsoft/vcpkg
 
 % Run installation script
 .\vcpkg\bootstrap-vcpkg.bat
-```
-Install required dependencies (all triplets **must be `x86-windows`**):
-```bat 
-.\vcpkg.exe install --triplet x86-windows boost:x86-windows sdl2 sdl2-image[libjpeg-turbo] sdl2-ttf sdl2-gfx opengl openal-soft
+
+% Run integrate Vcpkg with Visual Studio
+.\vcpkg\vcpkg integrate install
+
+% Install required dependencies (all triplets **must be `x86-windows`**):
+.\vcpkg\vcpkg install --triplet x86-windows boost:x86-windows sdl2 sdl2-image[libjpeg-turbo] sdl2-ttf sdl2-gfx opengl openal-soft
 ```
 
+Clone project
 ```bat
 % Navigate to the directory where you want to put the repository
 cd C:\dev
@@ -103,29 +105,29 @@ cd GameplayFootball
 
 % Switch to windows branch
 git switch windows
-
-
-% Copy the contents of `data` directory into `build\Debug` or (and) `build\Release`
-xcopy /e /i data build\Debug
-xcopy /e /i data build\Release
 ```
-Go to `build` directory and generate `cmake` files. Make sure that you correctly set the directory for `vcpkg` (in our case it is installed into `C:\dev\vcpkg`):
+
+Build project
+- Start `Visual Studio`, then click `File > Open > Folder...`
+- Navigate to the `GameplayFootball` project folder, and click `Select Folder`
+- Select `x86-Debug` or `x86-ReleaseDebugSymbol` and `x86-Release` mode in [Manage Configurations...](https://docs.microsoft.com/en-us/visualstudio/ide/understanding-build-configurations?view=vs-2019#solution-configurations)
+- Click `gameplayfootball.exe` to start build game
+- After build success, game will start but it close immediately, because it missing data. Now go to step copy data to game
+
+To copy data to game, switch back to Command Prompt window
 ```bat
-cd build
-
-cmake .. -DCMAKE_GENERATOR_PLATFORM=Win32 -DCMAKE_TOOLCHAIN_FILE=C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE  
+% Copy the contents of `data` directory into `out\build\x86-Debug` or `out\build\x86-Release` or `out\build\x86-ReleaseDebugSymbol`
+xcopy /e /i data out\build\x86-Debug
+xcopy /e /i data out\build\x86-Release
+xcopy /e /i data out\build\x86-ReleaseDebugSymbol
 ```
-To build `Release` version:
-```bat
-cmake --build . --parallel --config Release
-```
-For `Debug` version:
-```bat
-cmake --build . --parallel --config Debug
-```
+Now switch back Visual Studio, press F5, now project can start successful. You can [add breakpoint](https://docs.microsoft.com/en-us/visualstudio/debugger/using-breakpoints?view=vs-2019) or [start profiling tools](https://docs.microsoft.com/en-us/visualstudio/profiling/profiling-feature-tour?view=vs-2019)
 
-That's it! Run `gameplayfootball.exe` inside `build\Release` directory (or inside `build\Debug` for `Debug` version)
+That's it! Run `gameplayfootball.exe` inside `out\build\x86-Debug` or `out\build\x86-Release` or `out\build\x86-ReleaseDebugSymbol`
 
+NOTE:
+- Release mode can NOT add breakpoint.
+- Visual Studio 2019 support Release mode with Debug symbol, which mean the build is Release but you can add breakpoint. In project, this is `x86-ReleaseDebugSymbol`
 
 ## Problems? 
 If you have any problems please open an issue. 
