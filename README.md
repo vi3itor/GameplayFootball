@@ -158,6 +158,7 @@ xcopy /e /i data build\RelWithDebInfo
 ```
 
 Build project
+- Add Vcpkg folder as `VCPKG_ROOT` to system environment. e.g. `C:\dev\vcpkg`
 - Start `Visual Studio Code`, then click `File > Open Folder...`
 - Navigate to the `GameplayFootball` project folder, and click `Select Folder`
 - Open `c_cpp_properties.json` file, add `compilerPath` your compiler path when you installed Build tool. For example `C:/Program Files (x86)/Microsoft Visual Studio/2019/Buildtools/VC/Tools/MSVC/14.xx.xxxxx/bin/Hostx64/x86/cl.exe` with `x` is your `Build tools` version.
