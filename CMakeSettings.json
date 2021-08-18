@@ -9,7 +9,8 @@
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "ctestCommandArgs": "",
-            "inheritEnvironments": [ "msvc_x86" ]
+            "inheritEnvironments": [ "msvc_x86" ],
+            "clangTidyChecks": "-*,cppcoreguidelines-*"
         },
         {
             "name": "x86-Debug",
@@ -20,7 +21,8 @@
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "ctestCommandArgs": "",
-            "inheritEnvironments": [ "msvc_x86" ]
+            "inheritEnvironments": [ "msvc_x86" ],
+            "clangTidyChecks": "-*,cppcoreguidelines-*"
         },
         {
             "name": "x86-ReleaseDebugSymbol",
@@ -31,7 +33,8 @@
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "ctestCommandArgs": "",
-            "inheritEnvironments": [ "msvc_x86" ]
+            "inheritEnvironments": [ "msvc_x86" ],
+            "clangTidyChecks": "-*,cppcoreguidelines-*"
         }
     ]
 }

@@ -143,8 +143,8 @@ NOTE:
 ### 2. Visual Studio Code - Support Building
 - [Visual Studio Code](https://code.visualstudio.com/),
 - [C/C++ for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools)
-
 ![C++ VS Code](https://code.visualstudio.com/assets/docs/cpp/cpp/cpp-extension.png)
+
 - [C/C++ Extension Pack for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools-extension-pack).
 
 - [Build tools 2019 with Desktop development with C++](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019)
@@ -160,6 +160,7 @@ xcopy /e /i data build\RelWithDebInfo
 Build project
 - Start `Visual Studio Code`, then click `File > Open Folder...`
 - Navigate to the `GameplayFootball` project folder, and click `Select Folder`
+- Open `c_cpp_properties.json` file, add `compilerPath` your compiler path when you installed Build tool. For example `C:/Program Files (x86)/Microsoft Visual Studio/2019/Buildtools/VC/Tools/MSVC/14.xx.xxxxx/bin/Hostx64/x86/cl.exe` with `x` is your `Build tools` version.
 - Look at `status bar` below VS code window, we can see several button:
     - Current build variant
     - The active kit

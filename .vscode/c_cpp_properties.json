@@ -7,7 +7,7 @@
                 "${vcpkgRoot}/x86-windows/include"
             ],
             "defines": [],
-            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.29.30037/bin/Hostx64/x86/cl.exe",
+            "compilerPath": "",
             "cStandard": "c11",
             "cppStandard": "c++14",
             "intelliSenseMode": "windows-msvc-x86",
