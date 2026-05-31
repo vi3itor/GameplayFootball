@@ -1,6 +1,11 @@
 // written by bastiaan konings schuiling 2008 - 2015
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
+//
+// main.cpp — program entry point and global state.
+// Owns all top-level singletons (systems, scenes, tasks, controllers) and wires
+// them together before handing control to the scheduler.  On exit it tears them
+// down in reverse order.
 
 #ifdef WIN32
 #include <windows.h>
@@ -43,20 +48,23 @@ using namespace blunted;
 GraphicsSystem *graphicsSystem;
 AudioSystem *audioSystem;
 
-boost::shared_ptr<Scene2D> scene2D;
-boost::shared_ptr<Scene3D> scene3D;
+boost::shared_ptr<Scene2D> scene2D;  // 2D overlay scene (HUD, menus, debug images)
+boost::shared_ptr<Scene3D> scene3D;  // 3D world scene (pitch, players, ball)
 
+// Two scheduler sequences run concurrently: game logic and rendering.
 boost::shared_ptr<TaskSequence> graphicsSequence;
 boost::shared_ptr<TaskSequence> gameSequence;
 
 boost::shared_ptr<GameTask> gameTask;
 boost::shared_ptr<MenuTask> menuTask;
 
+// Coloured marker objects placed anywhere in the 3D scene to visualise AI/physics points.
 boost::intrusive_ptr<Geometry> greenPilon;
 boost::intrusive_ptr<Geometry> bluePilon;
 boost::intrusive_ptr<Geometry> yellowPilon;
 boost::intrusive_ptr<Geometry> redPilon;
 
+// Additional debug shapes for visualising radii or areas of interest.
 boost::intrusive_ptr<Geometry> smallDebugCircle1;
 boost::intrusive_ptr<Geometry> smallDebugCircle2;
 boost::intrusive_ptr<Geometry> largeDebugCircle;
@@ -79,21 +87,21 @@ boost::intrusive_ptr<Geometry> GetSmallDebugCircle1() { return smallDebugCircle1
 boost::intrusive_ptr<Geometry> GetSmallDebugCircle2() { return smallDebugCircle2; }
 boost::intrusive_ptr<Geometry> GetLargeDebugCircle() { return largeDebugCircle; }
 
-Database *db;
+Database *db;       // SQLite player/team database
+Properties *config; // key-value config loaded from football.config (or argv[1])
 
-Properties *config;
+// Full-screen 2D surfaces used for runtime debug rendering (disabled in release builds).
+boost::intrusive_ptr<Image2D> debugImage;   // small thumbnail in the corner (superDebug mode)
+boost::intrusive_ptr<Image2D> debugOverlay; // full-screen overlay (AI debug mode)
 
-boost::intrusive_ptr<Image2D> debugImage;
-boost::intrusive_ptr<Image2D> debugOverlay;
-
-std::vector<IHIDevice*> controllers;
+std::vector<IHIDevice*> controllers; // index 0 = keyboard; 1+ = gamepads
 
 bool superDebug = false;
 e_DebugMode debugMode = e_DebugMode_Off;
 
 std::string activeSaveDirectory;
 
-std::string configFile = "football.config";
+std::string configFile = "football.config"; // overridden by argv[1] at startup
 std::string GetConfigFilename() {
   return configFile;
 }
@@ -174,11 +182,12 @@ void GetDebugOverlayCoord(Match *match, const Vector3 &worldPos, int &x, int &y)
   y = clamp(y, 0, contextH - 1);
 }
 
+// Returns how many milliseconds remain until the next predicted frame swap.
+// Used by game logic to decide how much work it can still do this frame.
 int PredictFrameTimeToGo_ms(int frameCount) {
   int averageFrameTime_ms = GetGraphicsSystem()->GetAverageFrameTime_ms(frameCount);
   int timeSinceLastSwap_ms = GetGraphicsSystem()->GetTimeSinceLastSwap_ms();
   int timeToNextSwapPrediction_ms = averageFrameTime_ms - timeSinceLastSwap_ms;
-  //printf("super prediction! %i - %i = %i\n", averageFrameTime_ms, timeSinceLastSwap_ms, timeToNextSwapPrediction_ms);
   timeToNextSwapPrediction_ms = clamp(timeToNextSwapPrediction_ms, 0, 1000);
   return timeToNextSwapPrediction_ms;
 }
@@ -232,6 +241,8 @@ const std::vector<IHIDevice*> &GetControllers() {
   return controllers;
 }
 
+// Background thread that drives the ThreadHud overlay (per-thread timing bars).
+// Instantiated only in debug builds when the hud flag is enabled (see main()).
 class ThreadHudThread : public Thread {
   public:
     ThreadHudThread() {
@@ -244,7 +255,6 @@ class ThreadHudThread : public Thread {
     virtual void operator()() {
       bool quit = false;
       while (!quit) {
-
         SetState(e_ThreadState_Busy);
 
         bool isMessage = false;
@@ -258,30 +268,30 @@ class ThreadHudThread : public Thread {
         hud->Execute();
 
         SetState(e_ThreadState_Idle);
-
         boost::this_thread::yield();
       }
     }
 
   protected:
     ThreadHud *hud;
-
 };
 
 
 int main(int argc, const char** argv) {
 
+  // --- Config ------------------------------------------------------------------
   config = new Properties();
   if (argc > 1) configFile = argv[1];
   config->LoadFile(configFile.c_str());
 
-  Initialize(*config);
+  Initialize(*config); // engine-level init (logging, SDL, etc.)
 
   srand(time(NULL));
-  rand(); // mingw32? buggy compiler? first value seems bogus
-  randomseed(); // for the boost random
-  fastrandomseed();
+  rand(); // discard the first value — MinGW's RNG produces a biased first result
+  randomseed();     // seed boost::random
+  fastrandomseed(); // seed the lightweight fast-random helper
 
+  // Fixed physics timestep; graphics may render at a different (uncapped) rate.
   int timeStep_ms = config->GetInt("physics_frametime_ms", 10);
 
 
@@ -390,8 +400,8 @@ int main(int argc, const char** argv) {
   geometry.reset();
 
 
-  // controllers
-
+  // --- Controllers -------------------------------------------------------------
+  // Keyboard is always controller 0; any connected joysticks follow.
   HIDKeyboard *keyboard = new HIDKeyboard();
   controllers.push_back(keyboard);
   for (int i = 0; i < SDL_NumJoysticks(); i++) {
@@ -400,66 +410,65 @@ int main(int argc, const char** argv) {
   }
 
 
-  // sequences
+  // --- Tasks & scheduler sequences --------------------------------------------
+  // The scheduler runs two concurrent TaskSequences:
+  //   gameSequence    — fixed-timestep game logic (menu + gameplay)
+  //   graphicsSequence — uncapped render loop (reads game state written by gameTask::Put)
+  //
+  // Each task has three phases executed in order: Get (read input/state),
+  // Process (update), Put (write output/scene data).
 
-  boost::mutex graphicsGameMutex; // todo: this mutex seems necessary for visual fluency, doesn't this imply that i'm setting positional stuff during something else than gametask put? (or reading during something else than graphics get)
+  boost::mutex graphicsGameMutex; // guards scene writes vs. reads across sequences
 
   gameTask = boost::shared_ptr<GameTask>(new GameTask());
 
-  // TTF_Font *defaultFont = TTF_OpenFont("media/fonts/archivonarrow/ArchivoNarrow-Regular.ttf", 28);
-  // TTF_Font *defaultOutlineFont = TTF_OpenFont("media/fonts/archivonarrow/ArchivoNarrow-Regular.ttf", 28);
   std::string fontfilename = config->Get("font_filename", "media/fonts/alegreya/AlegreyaSansSC-ExtraBold.ttf");
   TTF_Font *defaultFont = TTF_OpenFont(fontfilename.c_str(), 32);
   if (!defaultFont) Log(e_FatalError, "football", "main", "Could not load font " + fontfilename);
   TTF_Font *defaultOutlineFont = TTF_OpenFont(fontfilename.c_str(), 32);
-  TTF_SetFontOutline(defaultOutlineFont, 2);
+  TTF_SetFontOutline(defaultOutlineFont, 2); // outline variant used for legible text over the pitch
   menuTask = boost::shared_ptr<MenuTask>(new MenuTask(5.0f / 4.0f, 0, defaultFont, defaultOutlineFont));
+  // Wire the first gamepad's A/B buttons to the menu confirm/back actions.
   if (controllers.size() > 1) menuTask->SetEventJoyButtons(static_cast<HIDGamepad*>(controllers.at(1))->GetControllerMapping(e_ControllerButton_A), static_cast<HIDGamepad*>(controllers.at(1))->GetControllerMapping(e_ControllerButton_B));
 
 
+  // Game sequence: runs at the fixed physics rate.
+  // Order matters — menu runs before gameplay so UI input is consumed first.
   gameSequence = boost::shared_ptr<TaskSequence>(new TaskSequence("game", timeStep_ms, false));
-
-  // note: the whole locking stuff is now happening from within some of the code, iirc, 't is all very ugly and unclear. sorry
-
-  //gameSequence->AddLockEntry(graphicsGameMutex, e_LockAction_Lock);   // ---------- lock -----
-
   gameSequence->AddUserTaskEntry(menuTask, e_TaskPhase_Get);
   gameSequence->AddUserTaskEntry(menuTask, e_TaskPhase_Process);
   gameSequence->AddUserTaskEntry(menuTask, e_TaskPhase_Put);
-
-  //gameSequence->AddLockEntry(graphicsGameMutex, e_LockAction_Unlock); // ---------- unlock ---
-
   gameSequence->AddUserTaskEntry(gameTask, e_TaskPhase_Get);
   gameSequence->AddUserTaskEntry(gameTask, e_TaskPhase_Process);
-
-//  gameSequence->AddLockEntry(graphicsGameMutex, e_LockAction_Unlock); // ---------- unlock ---
-
   GetScheduler()->RegisterTaskSequence(gameSequence);
 
-
-
+  // Graphics sequence: runs as fast as possible (frametime_ms = 0 means uncapped).
+  // gameTask::Put flushes scene-object positions so the renderer sees consistent state.
   graphicsSequence = boost::shared_ptr<TaskSequence>(new TaskSequence("graphics", config->GetInt("graphics3d_frametime_ms", 0), true));
-
   graphicsSequence->AddUserTaskEntry(gameTask, e_TaskPhase_Put);
-
-  //graphicsSequence->AddLockEntry(graphicsGameMutex, e_LockAction_Lock);   // ---------- lock -----
-
   graphicsSequence->AddSystemTaskEntry(graphicsSystem, e_TaskPhase_Get);
-
-  //graphicsSequence->AddLockEntry(graphicsGameMutex, e_LockAction_Unlock); // ---------- unlock ---
-
   graphicsSequence->AddSystemTaskEntry(graphicsSystem, e_TaskPhase_Process);
   graphicsSequence->AddSystemTaskEntry(graphicsSystem, e_TaskPhase_Put);
-
   GetScheduler()->RegisterTaskSequence(graphicsSequence);
 
 
-  // fire!
+  // --- Run --------------------------------------------------------------------
+#ifdef __APPLE__
+  // macOS requires OpenGL and Cocoa event pumping on the main thread.
+  // The scheduler (game logic) moves to a background thread; the main thread
+  // drives RunMainLoop() which blocks until the game exits.
+  {
+    boost::thread schedulerThread([]() { Run(); });
+    graphicsSystem->RunMainLoop();
+    schedulerThread.join();
+  }
+#else
+  Run(); // blocks until the scheduler stops
+#endif
 
-  Run();
 
-
-  // exit
+  // --- Shutdown ---------------------------------------------------------------
+  // Release resources in reverse-construction order.
 
   if (SuperDebug()) scene2D->DeleteObject(debugImage);
   if (GetDebugMode() == e_DebugMode_AI) scene2D->DeleteObject(debugOverlay);

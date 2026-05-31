@@ -128,9 +128,21 @@ namespace blunted {
       virtual void HDRCaptureOverallBrightness();
       virtual float HDRGetOverallBrightness();
 
+      // Called from the main thread on macOS before starting the game loop.
+      // Initialises SDL video subsystem and SDL_image (which on macOS must happen
+      // on the process's main thread so that Cocoa / NSApp is set up correctly).
+      void InitSDL();
+
+      // Run the event-pump + renderer message loop on the calling thread.
+      // Used on macOS where the whole OpenGL pipeline must live on the main thread.
+      // Returns when EnvironmentManager::GetQuit() is true and the queue is empty.
+      virtual void RunLoop() override;
+
       void operator()();
 
     protected:
+      bool sdlInitialized = false;
+
       SDL_GLContext context;
       SDL_Window* window;
       int context_width, context_height, context_bpp;

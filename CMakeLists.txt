@@ -42,7 +42,7 @@ include_directories(${SDL2_TTF_DIRS})
 FIND_PACKAGE(SDL2_gfx REQUIRED)
 include_directories(${SDL2_GFX_DIRS})
 
-FIND_PACKAGE(Boost REQUIRED COMPONENTS system thread filesystem)
+FIND_PACKAGE(Boost REQUIRED COMPONENTS thread filesystem)
 include_directories(${Boost_INCLUDE_DIR})
 
 FIND_PACKAGE(OpenAL REQUIRED)
@@ -98,9 +98,16 @@ add_library(menulib ${MENU_SOURCES} ${MENU_HEADERS})
 add_library(datalib ${DATA_SOURCES} ${DATA_HEADERS})
 
 set(LIBRARIES gamelib hidlib menulib datalib leaguelib blunted2
-   Boost::filesystem Boost::system Boost::thread SQLite::SQLite3
+   Boost::filesystem Boost::thread SQLite::SQLite3
    ${SDL2_IMAGE_LIBRARIES} ${SDL2_TTF_LIBRARIES} ${SDL2_GFX_LIBRARIES}
    ${SDL2_LIBRARIES} ${OPENAL_LIBRARY} dl m ${OPENGL_LIBRARIES})
 
 add_executable(gameplayfootball WIN32 ${CORE_SOURCES} ${CORE_HEADERS})
 target_link_libraries(gameplayfootball ${LIBRARIES})
+
+if(APPLE)
+  set_target_properties(gameplayfootball PROPERTIES
+    BUILD_RPATH "/Library/Frameworks;/opt/homebrew/lib"
+    INSTALL_RPATH "/Library/Frameworks;/opt/homebrew/lib"
+  )
+endif()

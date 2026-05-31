@@ -362,16 +362,12 @@ struct GLfunctions {
 
     SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 
-    //SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    //SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-    //SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
     // todo: remember to enable this later on, after migrating to sdl 2 (though it is on by default with most drivers, or so it seems)
     //SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
-
-//    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-//    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-//    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 //recently disabled  SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 1); // wait for vsync?
 //  int SDLerror = SDL_GL_SetSwapInterval(-1);
 //  if (SDLerror == -1) SDL_GL_SetSwapInterval(1);
@@ -522,6 +518,16 @@ struct GLfunctions {
     mapping.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     mapping.glDisable(GL_MULTISAMPLE);
+
+#ifdef __APPLE__
+    // On macOS the window + GL context must be created on the process main
+    // thread (Cocoa requirement), which is where we are now.  The renderer,
+    // however, runs on its own thread (see operator()()), so release the
+    // context from this thread; the renderer thread claims it via
+    // SDL_GL_MakeCurrent at the top of its loop.  GL objects created above
+    // (shaders, textures, buffers) belong to the context and stay valid.
+    SDL_GL_MakeCurrent(window, NULL);
+#endif
 
     return true;
   }
@@ -2243,26 +2249,77 @@ struct GLfunctions {
 
   // thread main loop
 
-  void OpenGLRenderer3D::operator()() {
-    Log(e_Notice, "OpenGLRenderer3D", "operator()()", "Starting OpenGLRenderer3D thread");
-
+  void OpenGLRenderer3D::InitSDL() {
     SDL_Init(SDL_INIT_VIDEO);
 
     int flags = IMG_INIT_JPG | IMG_INIT_PNG;
     int inited = IMG_Init(flags);
-
     if ((inited & flags) != flags) {
       printf("IMG_Init: Failed to init required jpg and png support!\n");
       printf("IMG_Init: %s\n", IMG_GetError());
     }
 
+    sdlInitialized = true;
+  }
+
+  // Pumps SDL/Cocoa window events on the process main thread (macOS).  All
+  // OpenGL work and the renderer message queue live on the renderer's own
+  // thread (operator()()); this loop only feeds input events and watches for
+  // the quit signal.  Returns once the game has signalled quit.
+  void OpenGLRenderer3D::RunLoop() {
     SDL_Event event;
+    while (!EnvironmentManager::GetInstance().GetQuit()) {
+      while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_WINDOWEVENT) {
+          if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+            contextIsActive = false;
+          else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+            contextIsActive = true;
+        }
+        switch (event.type) {
+          case SDL_QUIT:
+            EnvironmentManager::GetInstance().SignalQuit();
+            break;
+          case SDL_KEYDOWN:
+            if (event.key.keysym.sym == SDLK_F12)
+              EnvironmentManager::GetInstance().SignalQuit();
+            break;
+          default:
+            break;
+        }
+        if (contextIsActive)
+          UserEventManager::GetInstance().InputSDLEvent(event);
+      }
+
+      // Block briefly for the next event so we don't busy-spin the main thread.
+      SDL_WaitEventTimeout(NULL, 5);
+    }
+  }
+
+  void OpenGLRenderer3D::operator()() {
+    Log(e_Notice, "OpenGLRenderer3D", "operator()()", "Starting OpenGLRenderer3D thread");
+
+    if (!sdlInitialized) InitSDL();
+
+#ifdef __APPLE__
+    // The window + GL context were created on the main thread and released
+    // there (see CreateContext).  Claim the context on this, the renderer
+    // thread, so all subsequent GL work happens here.  SDL/Cocoa window events
+    // are pumped on the main thread (see RunLoop()).
+    SDL_GL_MakeCurrent(window, context);
+#endif
+
+    SDL_Event event;
+    (void)event;
 
     bool quit = false;
     while (!quit) {
 
       // process messages
 
+#ifndef __APPLE__
+      // On macOS SDL/Cocoa events must be pumped on the process main thread, so
+      // they are handled in RunLoop() instead of here.
       while (SDL_PollEvent(&event)) {
 
         // context losing/gaining focus
@@ -2297,6 +2354,7 @@ struct GLfunctions {
         }
 
       }
+#endif
 
       // todo: manual joy handling? see joy init in usereventmanager
       // SDL_JoystickUpdate();
@@ -2312,8 +2370,13 @@ struct GLfunctions {
 
     Exit();
 
+#ifndef __APPLE__
+    // On macOS SDL was initialised on the main thread; leave SDL_image / video
+    // subsystem teardown to process exit rather than tearing it down from this
+    // secondary thread.
     IMG_Quit();
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
+#endif
 
     Log(e_Notice, "OpenGLRenderer3D", "operator()()", "Shutting down OpenGLRenderer3D thread");
 
