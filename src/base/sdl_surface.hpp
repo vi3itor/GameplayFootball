@@ -8,8 +8,6 @@
 #include "SDL2/SDL_image.h"
 #include "SDL2/SDL_endian.h"
 
-#include "SDL2/SDL2_gfxPrimitives.h"
-
 namespace blunted {
 
   class Triangle;
@@ -39,6 +37,7 @@ namespace blunted {
   #endif
 
   SDL_Surface *CreateSDLSurface(int width, int height);
+  SDL_Surface *sdl_resize_surface(const SDL_Surface *surface, int width, int height);
   void sdl_putpixel(SDL_Surface *surface, int x, int y, Uint32 pixel);
   Uint32 sdl_getpixel(const SDL_Surface *surface, int x, int y);
   void sdl_line(SDL_Surface *surface, int x1, int y1, int x2, int y2, Uint32 color);

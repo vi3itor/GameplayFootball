@@ -1,6 +1,8 @@
 cmake-build*/
+out/
 .idea/
 .vs/
+vcpkg_installed/
 Release/
 Debug/
 data/log.txt

@@ -7,8 +7,6 @@
 #include "utils/gui2/windowmanager.hpp"
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL2_rotozoom.h>
-
 #include "../../gamedefines.hpp"
 
 #include "../../onthepitch/match.hpp"

@@ -11,6 +11,21 @@ namespace blunted {
     return SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_RLEACCEL, width, height, 32, r_mask, g_mask, b_mask, a_mask);
   }
 
+  SDL_Surface *sdl_resize_surface(const SDL_Surface *surface, int width, int height) {
+    if (!surface || width <= 0 || height <= 0) return 0;
+
+    SDL_Surface *resized = SDL_CreateRGBSurfaceWithFormat(
+        0, width, height, surface->format->BitsPerPixel, surface->format->format);
+    if (!resized) return 0;
+
+    SDL_Rect destination = { 0, 0, width, height };
+    if (SDL_BlitScaled(const_cast<SDL_Surface *>(surface), 0, resized, &destination) != 0) {
+      SDL_FreeSurface(resized);
+      return 0;
+    }
+    return resized;
+  }
+
   void sdl_putpixel(SDL_Surface *surface, int x, int y, Uint32 pixel) {
 
     int bpp = surface->format->BytesPerPixel;

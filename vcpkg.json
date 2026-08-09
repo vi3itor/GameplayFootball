@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "gameplayfootball",
+  "version-string": "0.3.0",
+  "builtin-baseline": "ea1a7396b05637a53bf23c078647ecc0edee4b80",
+  "dependencies": [
+    "boost-filesystem",
+    "boost-system",
+    "boost-thread",
+    "boost-signals2",
+    "boost-random",
+    "boost-circular-buffer",
+    "sdl2",
+    {
+      "name": "sdl2-image",
+      "features": ["libjpeg-turbo"]
+    },
+    "sdl2-ttf",
+    "openal-soft"
+  ]
+}

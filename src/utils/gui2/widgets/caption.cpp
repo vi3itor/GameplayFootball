@@ -6,7 +6,7 @@
 
 #include "../windowmanager.hpp"
 
-#include "SDL2/SDL2_rotozoom.h"
+#include "base/sdl_surface.hpp"
 
 namespace blunted {
 
@@ -74,8 +74,10 @@ namespace blunted {
     float zoomy;
     renderedTextHeightPix = (float)textOutlineSurfTmp->h;
     zoomy = (float)(h - y_margin * 2) / renderedTextHeightPix;
-    SDL_Surface *textOutlineSurf = zoomSurface(textOutlineSurfTmp, zoomy, zoomy, 1);
-    SDL_Surface *textSurf = zoomSurface(textSurfTmp, zoomy, zoomy, 1);
+    SDL_Surface *textOutlineSurf = sdl_resize_surface(
+        textOutlineSurfTmp, int(round(textOutlineSurfTmp->w * zoomy)), int(round(textOutlineSurfTmp->h * zoomy)));
+    SDL_Surface *textSurf = sdl_resize_surface(
+        textSurfTmp, int(round(textSurfTmp->w * zoomy)), int(round(textSurfTmp->h * zoomy)));
     SDL_FreeSurface(textOutlineSurfTmp);
     SDL_FreeSurface(textSurfTmp);
 

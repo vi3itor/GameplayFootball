@@ -352,7 +352,10 @@ struct GLfunctions {
 
 //#ifdef WIN32
     // SDL subsystems must be initialized before setting attributes
-    SDL_Init(SDL_INIT_VIDEO);
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+      Log(e_Error, "OpenGLRenderer3D", "CreateContext", "SDL video initialization failed: " + std::string(SDL_GetError()));
+      return false;
+    }
 
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
@@ -364,9 +367,11 @@ struct GLfunctions {
 
     SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 
-    //SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    //SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-    //SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    // The renderer uses both shader/VBO functions and the compatibility
+    // profile's immediate-mode calls (glBegin/glEnd).
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 
     // todo: remember to enable this later on, after migrating to sdl 2 (though it is on by default with most drivers, or so it seems)
     //SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
@@ -384,7 +389,28 @@ struct GLfunctions {
                                 SDL_WINDOWPOS_UNDEFINED, width, height,
                                 SDL_WINDOW_OPENGL /* | SDL_RESIZABLE*/ |
                                 (fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
+    if (!window) {
+      Log(e_Error, "OpenGLRenderer3D", "CreateContext", "SDL window creation failed: " + std::string(SDL_GetError()));
+      return false;
+    }
     context = SDL_GL_CreateContext(window);
+    if (!context) {
+      Log(e_Error, "OpenGLRenderer3D", "CreateContext", "OpenGL context creation failed: " + std::string(SDL_GetError()));
+      SDL_DestroyWindow(window);
+      window = 0;
+      return false;
+    }
+
+    // Capture the actual adapter/context before loading extension functions.
+    // This is especially useful on Windows systems with hybrid or DisplayLink
+    // graphics, where the active OpenGL provider may be limited to 1.1.
+    const GLubyte *contextVersion = ::glGetString(GL_VERSION);
+    const GLubyte *glVendor = ::glGetString(GL_VENDOR);
+    const GLubyte *glRenderer = ::glGetString(GL_RENDERER);
+    printf("OpenGL context: version=%s vendor=%s renderer=%s\n",
+           contextVersion ? reinterpret_cast<const char *>(contextVersion) : "unknown",
+           glVendor ? reinterpret_cast<const char *>(glVendor) : "unknown",
+           glRenderer ? reinterpret_cast<const char *>(glRenderer) : "unknown");
 
 
     //    *reinterpret_cast<void**>(&(mapping.func)) =
@@ -396,9 +422,14 @@ struct GLfunctions {
         SDL_GL_GetProcAddress(#func);                                      \
     if (!mapping.func) {                                                   \
       printf("Couldn't load GL function %s: %s\n", #func, SDL_GetError()); \
-      SDL_SetError("Couldn't load GL function %s: %s\n", #func,            \
-                   SDL_GetError());                                        \
-      exit(1);                                                             \
+      const std::string error = "Couldn't load GL function " #func ": " +  \
+          std::string(SDL_GetError());                                     \
+      Log(e_Error, "OpenGLRenderer3D", "CreateContext", error);           \
+      SDL_GL_DeleteContext(context);                                        \
+      context = 0;                                                          \
+      SDL_DestroyWindow(window);                                             \
+      window = 0;                                                           \
+      return false;                                                         \
     }                                                                      \
   } while (0);
 #include "sdl_glfuncs.h"
@@ -412,11 +443,6 @@ struct GLfunctions {
     mapping.glGetIntegerv(GL_MINOR_VERSION, &glVersion[1]);
 
     Log(e_Notice, "OpenGLRenderer3D", "CreateContext", "OpenGL major/minor " + int_to_str(glVersion[0]) + "." + int_to_str(glVersion[1]));
-    if (!context) {
-      std::string errorString = SDL_GetError();
-      Log(e_FatalError, "OpenGLRenderer3D", "CreateContext", "Failed on SDL error: " + errorString);
-      return false;
-    }
     bool higherThan32 = false;
     if (glVersion[0] < 4) {
       if (glVersion[0] == 3 && glVersion[1] >= 2) higherThan32 = true;

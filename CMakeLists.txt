@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.20)
 
 set(PACKAGE GameplayFootball)
 
@@ -14,6 +14,9 @@ endif(${VERSION_PATCH})
 #set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 
 project(GameplayFootball)
+
+option(GAMEPLAYFOOTBALL_WINDOWS_SUBSYSTEM
+   "Build without a console window on Windows" OFF)
 
 set (CMAKE_CXX_STANDARD 14)
 
@@ -35,28 +38,25 @@ endif(MSVC)
 # SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -fPIC -O3 -g")
 
 # Find required libraries
-FIND_PACKAGE(OpenGL REQUIRED)
-include_directories(${OPENGL_INCLUDE_DIR})
+find_package(OpenGL REQUIRED)
 
-FIND_PACKAGE(SDL2 REQUIRED)
-include_directories(${SDL2_INCLUDE_DIR})
+find_package(SDL2 CONFIG REQUIRED)
 
-FIND_PACKAGE(SDL2-image REQUIRED)
-include_directories(${SDL2_IMAGE_DIRS})
+find_package(SDL2_image CONFIG REQUIRED)
 
-FIND_PACKAGE(SDL2-ttf REQUIRED)
-include_directories(${SDL2_TTF_DIRS})
+find_package(SDL2_ttf CONFIG REQUIRED)
 
-FIND_PACKAGE(SDL2-gfx REQUIRED)
-include_directories(${SDL2_GFX_DIRS})
+find_package(Boost CONFIG REQUIRED COMPONENTS system thread filesystem)
 
-FIND_PACKAGE(Boost REQUIRED COMPONENTS system thread filesystem)
-include_directories(${Boost_INCLUDE_DIR})
-
-FIND_PACKAGE(OpenAL REQUIRED)
-include_directories(${OPENAL_INCLUDE_DIR})
+find_package(OpenAL CONFIG REQUIRED)
 
 include_directories(${PROJECT_SOURCE_DIR}/src)
+
+add_library(gameplayfootball_dependencies INTERFACE)
+target_link_libraries(gameplayfootball_dependencies INTERFACE
+   Boost::system Boost::thread Boost::filesystem
+   SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf
+   OpenAL::OpenAL OpenGL::GL)
 
 # Include the sources
 include(sources.cmake)
@@ -103,10 +103,27 @@ add_library(hidlib ${HID_SOURCES} ${HID_HEADERS})
 add_library(menulib ${MENU_SOURCES} ${MENU_HEADERS})
 add_library(datalib ${DATA_SOURCES} ${DATA_HEADERS})
 
-set(LIBRARIES gamelib hidlib menulib datalib leaguelib blunted2
-   ${Boost_LIBRARIES} SDL2::SDL2 SDL2::SDL2main SDL2::SDL2_image SDL2::SDL2_ttf SDL2::SDL2_gfx
-   ${OPENAL_LIBRARY} ${OPENGL_LIBRARY})
+set(INTERNAL_TARGETS baselib systemscommonlib systemsgraphicslib systemsaudiolib
+   loaderslib typeslib frameworklib scenelib managerslib utilslib gui2lib
+   blunted2 leaguelib gamelib hidlib menulib datalib)
+foreach(target IN LISTS INTERNAL_TARGETS)
+   target_link_libraries(${target} PUBLIC gameplayfootball_dependencies)
+endforeach()
+
+set(LIBRARIES gamelib hidlib menulib datalib leaguelib blunted2)
 
 
-add_executable(gameplayfootball WIN32 ${CORE_SOURCES} ${CORE_HEADERS})
-target_link_libraries(gameplayfootball ${LIBRARIES})
+if(WIN32 AND GAMEPLAYFOOTBALL_WINDOWS_SUBSYSTEM)
+   add_executable(gameplayfootball WIN32 ${CORE_SOURCES} ${CORE_HEADERS})
+else()
+   add_executable(gameplayfootball ${CORE_SOURCES} ${CORE_HEADERS})
+endif()
+target_link_libraries(gameplayfootball PRIVATE ${LIBRARIES})
+target_link_libraries(gameplayfootball PRIVATE gameplayfootball_dependencies)
+
+# Keep runtime assets beside the executable so launching it from Explorer uses
+# the same layout as launching it from the build directory.
+add_custom_command(TARGET gameplayfootball POST_BUILD
+   COMMAND ${CMAKE_COMMAND} -E copy_directory
+      "${PROJECT_SOURCE_DIR}/data"
+      "$<TARGET_FILE_DIR:gameplayfootball>")

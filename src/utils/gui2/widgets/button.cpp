@@ -4,8 +4,6 @@
 
 #include "button.hpp"
 
-#include "SDL2/SDL2_rotozoom.h"
-
 namespace blunted {
 
   Gui2Button::Gui2Button(Gui2WindowManager *windowManager, const std::string &name, float x_percent, float y_percent, float width_percent, float height_percent, const std::string &caption) : Gui2View(windowManager, name, x_percent, y_percent, width_percent, height_percent) {

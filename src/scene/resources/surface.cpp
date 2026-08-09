@@ -6,8 +6,6 @@
 
 #include "base/log.hpp"
 
-#include "SDL2/SDL2_rotozoom.h"
-
 namespace blunted {
 
   Surface::Surface() : surface(0) {
@@ -38,11 +36,6 @@ namespace blunted {
 
   void Surface::Resize(int x, int y) {
 
-    // zoomSurface doesn't seem to create a completely new surface; got some weird segfaults.
-    // not 100% sure if it's their fault though, or if i'm doing something wrong. either way,
-    // it works with this fix, though it's a bit of a performance hit, an extra surface copy.
-    bool buggyZoomSurface = true;
-
     assert(this->surface);
     int xcur = this->surface->w;
     int ycur = this->surface->h;
@@ -52,17 +45,13 @@ namespace blunted {
     if (yfac == 0) yfac = xfac;
     if (xfac == 0) xfac = yfac;
     if (xfac == 0 || yfac == 0) return;
-    SDL_Surface *newSurf = zoomSurface(this->surface, xfac, yfac, SMOOTHING_ON);
+    SDL_Surface *newSurf = sdl_resize_surface(this->surface, int(round(xcur * xfac)), int(round(ycur * yfac)));
     //printf("resize factors: %f %f\n", xfac, yfac);
     //printf("surface size: %i %i\n", this->surface->w, this->surface->h);
     //printf("new surface size: %i %i\n", newSurf->w, newSurf->h);
+    if (!newSurf) return;
     SDL_FreeSurface(this->surface);
-    if (buggyZoomSurface) {
-      this->surface = SDL_ConvertSurface(newSurf, newSurf->format, 0);
-      SDL_FreeSurface(newSurf);
-    } else {
-      this->surface = newSurf;
-    }
+    this->surface = newSurf;
   }
 
   void Surface::GetSize(int &x, int &y) {
