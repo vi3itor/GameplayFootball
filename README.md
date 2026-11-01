@@ -220,8 +220,14 @@ preset on CMake 4, also pass `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`.
 - **Rendering or startup issue:** include `log.txt` from the run directory and
   terminal output, along with the OS and GPU details.
 
-There is no automated test suite. Validate changes by building and running the
-game, and distinguish startup checks from full gameplay testing.
+The match-report serializer has headless regression tests, runnable with CTest.
+Game simulation and gameplay still require building and running the game;
+distinguish serializer/startup checks from full gameplay testing.
+
+## Match reports
+
+Optional JSON match reports are available for PASS-style analysis. Reporting is
+disabled by default; see [setup, schema, and attribution](FORK_BRANCH_INVENTORY.md#pass-match-reports).
 
 ## Source layout
 

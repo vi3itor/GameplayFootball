@@ -4,6 +4,8 @@
 
 #include "match.hpp"
 
+// Modified: optional PASS reporting adapted from Tijmen Krijnen; see FORK_BRANCH_INVENTORY.md (R030).
+
 #include "../main.hpp"
 
 #include "proceduralpitch.hpp"
@@ -22,6 +24,7 @@
 #include "player/playerofficial.hpp"
 
 #include "base/log.hpp"
+#include <exception>
 
 #include "menu/pagefactory.hpp"
 #include "menu/startmatch/loadingmatch.hpp"
@@ -34,6 +37,8 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   Log(e_Notice, "Match", "Match", "Starting Match");
 
   _positionLogging = false;
+  matchReportDirectory = GetConfiguration()->Get("match_report_directory", "");
+  if (!matchReportDirectory.empty()) matchStartTime = match_report::NowMs();
 
   // shared ptr to menutask, because menutask shouldn't die before match does
   menuTask = GetMenuTask();
@@ -131,6 +136,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   teams[1] = new Team(1, this, matchData->GetTeamData(1));
   teams[0]->InitPlayers(fullbodyNode, colorCoords);
   teams[1]->InitPlayers(fullbodyNode, colorCoords);
+  if (!matchReportDirectory.empty()) CaptureReportLineup();
 
   std::vector<Player*> activePlayers;
   teams[0]->GetActivePlayers(activePlayers);
@@ -403,7 +409,84 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
 Match::~Match() {
 }
 
+namespace {
+match_report::Person ReportPerson(Player *player, Team *team) {
+  match_report::Person person;
+  if (player) {
+    person.first_name = player->GetPlayerData()->GetFirstName();
+    person.last_name = player->GetPlayerData()->GetLastName();
+  }
+  if (team) {
+    person.team = team->GetTeamData()->GetName();
+    person.team_short = team->GetTeamData()->GetShortName();
+    person.home_or_away = team->GetID();
+  }
+  return person;
+}
+
+match_report::Role ReportRole(e_PlayerRole role) {
+  using match_report::Role;
+  switch (role) {
+    case e_PlayerRole_GK: return Role::goalkeeper;
+    case e_PlayerRole_CB: case e_PlayerRole_LB: case e_PlayerRole_RB: return Role::defender;
+    case e_PlayerRole_DM: case e_PlayerRole_CM: case e_PlayerRole_LM: case e_PlayerRole_RM:
+      return Role::midfielder;
+    case e_PlayerRole_AM: case e_PlayerRole_CF: return Role::attacker;
+    default: return Role::unknown;
+  }
+}
+} // namespace
+
+void Match::CaptureReportLineup() {
+  for (Team *team : teams) {
+    for (Player *player : team->GetAllPlayers()) {
+      const bool starter = player->IsActive();
+      // Bench players have no starting formation slot. Do not index one for them.
+      const auto role = starter ? ReportRole(player->GetFormationEntry().role) : match_report::Role::unknown;
+      reportPlayers.push_back({player, role, starter});
+    }
+  }
+}
+
+void Match::StoreMatchAction(match_report::Action action, Player *actor,
+                            int actorTeamID, int beneficiaryTeamID) {
+  if (matchReportDirectory.empty()) return;
+  Team *team = actor ? actor->GetTeam() :
+    actorTeamID >= 0 && actorTeamID < 2 ? teams[actorTeamID] : nullptr;
+  matchActions.push_back(match_report::MakeAction(action, ReportPerson(actor, team),
+    GetMatchPhase(), GetMatchTime_ms(), GetScore(0), GetScore(1), beneficiaryTeamID));
+}
+
+void Match::WriteMatchReport() {
+  if (matchReportDirectory.empty() || reportAttempted) return;
+  reportAttempted = true;
+  try {
+    match_report::Info info;
+    info.home_team = teams[0]->GetTeamData()->GetName();
+    info.home_short = teams[0]->GetTeamData()->GetShortName();
+    info.away_team = teams[1]->GetTeamData()->GetName();
+    info.away_short = teams[1]->GetTeamData()->GetShortName();
+    info.goals = {{GetScore(0), GetScore(1)}};
+    info.halftime_known = matchData->HasHalfTimeGoalCount();
+    info.halftime_goals = {{matchData->GetHalfTimeGoalCount(0), matchData->GetHalfTimeGoalCount(1)}};
+    info.completed = gameOver;
+    info.start_ms = matchStartTime;
+    info.end_ms = match_report::NowMs();
+    match_report::Records lineup;
+    for (const auto &entry : reportPlayers) {
+      lineup.push_back(match_report::MakeLineup(ReportPerson(entry.player, entry.player->GetTeam()),
+        entry.role, entry.player->GetCards() > 1, entry.starter));
+    }
+    const std::string path = match_report::Write(matchReportDirectory, matchStartTime,
+      match_report::Serialize(matchActions, match_report::MakeInfo(info), lineup));
+    Log(e_Notice, "Match", "WriteMatchReport", "Match report saved: " + path);
+  } catch (const std::exception &error) {
+    Log(e_Warning, "Match", "WriteMatchReport", "Could not export match report: " + std::string(error.what()));
+  }
+}
+
 void Match::Exit() {
+  WriteMatchReport();
   if (Verbose()) printf("exiting match.. ");
 
   if (Verbose()) printf("\nscene3D tree before match Exit():\n");
@@ -685,6 +768,7 @@ void Match::ResetSituation(const Vector3 &focusPos) {
 }
 
 void Match::SetMatchPhase(e_MatchPhase newMatchPhase) {
+  if (newMatchPhase == e_MatchPhase_2ndHalf) matchData->SetHalfTimeGoalCount();
   matchPhase = newMatchPhase;
   if (matchPhase == e_MatchPhase_1stHalf)           matchTime_ms = 0;
   else if (matchPhase == e_MatchPhase_2ndHalf)      matchTime_ms = 2700000;
@@ -1011,6 +1095,9 @@ void Match::Process() {
             SpamMessage("It's an OWN GOAL! oh noes!", 4000);
           }
         }
+        // Keep the actor's team separate from the team awarded the goal.
+        StoreMatchAction(ownGoal ? match_report::Action::own_goal : match_report::Action::goal,
+          lastGoalScorer, ownGoal ? 1 - lastGoalTeamID : lastGoalTeamID, lastGoalTeamID);
 
       }
     }

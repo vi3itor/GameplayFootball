@@ -32,6 +32,8 @@ jobs:
         run: cmake --preset windows-x64-vcpkg
       - name: Build Windows x64 console executable
         run: cmake --build --preset windows-x64-vcpkg --parallel 4
+      - name: Test match reports
+        run: ctest --test-dir build/windows-x64-vcpkg -C Release --output-on-failure
       - name: Configure Windows x64 GUI executable
         run: cmake --preset windows-x64-vcpkg -DGAMEPLAYFOOTBALL_WINDOWS_SUBSYSTEM=ON
       - name: Build Windows x64 GUI executable

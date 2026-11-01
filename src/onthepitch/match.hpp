@@ -35,6 +35,9 @@
 
 #include <fstream>
 #include <iostream>
+#include "utils/match_report.hpp"
+
+// Modified: opt-in PASS report export adapted from Tijmen Krijnen's 2022 work.
 
 struct ReplaySpatialFrame {
   unsigned long frameTime_ms;
@@ -168,6 +171,8 @@ class Match {
     unsigned long GetActualTime_ms() const { return actualTime_ms; }
 
     void GameOver();
+    void StoreMatchAction(match_report::Action action, Player *actor,
+                          int actorTeamID = -1, int beneficiaryTeamID = -1);
 
     void GetCameraParams(float &zoom, float &height, float &fov, float &angleFactor);
     void SetCameraParams(float zoom, float height, float fov, float angleFactor);
@@ -225,6 +230,19 @@ class Match {
     boost::signals2::signal<void(Match*)> sig_OnExitedMatch;
 
   protected:
+    struct ReportPlayer {
+      Player *player;
+      match_report::Role role;
+      bool starter;
+    };
+    std::string matchReportDirectory;
+    std::int64_t matchStartTime = 0;
+    bool reportAttempted = false;
+    match_report::Records matchActions;
+    std::vector<ReportPlayer> reportPlayers;
+    void CaptureReportLineup();
+    void WriteMatchReport();
+
     void GetReplaySpatials(std::list < boost::intrusive_ptr<Spatial> > &spatials);
     void CaptureReplayFrame(unsigned long replayTime_ms);
     bool CheckForGoal(signed int side);

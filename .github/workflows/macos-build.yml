@@ -28,6 +28,8 @@ jobs:
         run: cmake --preset mac-arm64-vcpkg
       - name: Build macOS ARM64 Release
         run: cmake --build --preset mac-arm64-vcpkg --parallel 3
+      - name: Test match reports
+        run: ctest --test-dir build/mac-arm64-vcpkg --output-on-failure
       - name: Check executable and staged assets
         shell: bash
         run: |

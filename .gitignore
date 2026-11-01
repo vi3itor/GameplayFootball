@@ -3,6 +3,7 @@ out/
 .idea/
 .vs/
 vcpkg_installed/
+match-reports/
 Release/
 Debug/
 data/log.txt

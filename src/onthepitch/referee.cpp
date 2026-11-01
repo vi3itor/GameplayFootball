@@ -4,6 +4,8 @@
 
 #include "referee.hpp"
 
+// Modified: PASS event hooks adapted from Tijmen Krijnen; actor and beneficiary are distinct.
+
 #include "scene/objectfactory.hpp"
 #include "managers/resourcemanagerpool.hpp"
 
@@ -244,6 +246,16 @@ void Referee::Process() {
       if (match->GetMatchPhase() == e_MatchPhase_PreMatch) {
         match->SetMatchPhase(e_MatchPhase_1stHalf);
       }
+      using match_report::Action;
+      switch (buffer.desiredSetPiece) {
+        case e_SetPiece_KickOff: match->StoreMatchAction(Action::kick_off, buffer.taker); break;
+        case e_SetPiece_GoalKick: match->StoreMatchAction(Action::goal_kick, buffer.taker); break;
+        case e_SetPiece_FreeKick: match->StoreMatchAction(Action::free_kick, buffer.taker); break;
+        case e_SetPiece_Corner: match->StoreMatchAction(Action::corner, buffer.taker); break;
+        case e_SetPiece_Penalty: match->StoreMatchAction(Action::penalty, buffer.taker); break;
+        case e_SetPiece_ThrowIn: match->StoreMatchAction(Action::throw_in, buffer.taker); break;
+        default: break;
+      }
     }
   }
 
@@ -290,6 +302,7 @@ void Referee::BallTouched() {
           buffer.teamID = abs(lastTouchTeamID - 1);
           buffer.active = true;
           match->SpamMessage("offside!");
+          match->StoreMatchAction(match_report::Action::offside, playerIter->first, -1, buffer.teamID);
           break;
         } else break;
       }
@@ -425,15 +438,21 @@ bool Referee::CheckFoul() {
       buffer.restartPos = Vector3((pitchHalfW - 11.0) * foul.foulPlayer->GetTeam()->GetSide(), 0, 0);
     }
     buffer.teamID = foul.foulVictim->GetTeam()->GetID();
+    match->StoreMatchAction(penalty ? match_report::Action::foul_penalty : match_report::Action::foul_free_kick,
+      foul.foulPlayer, -1, buffer.teamID);
     buffer.active = true;
     std::string spamMessage = "foul!";
     if (foul.foulType == 2) {
       spamMessage.append(" yellow card");
       foul.foulPlayer->GiveYellowCard(match->GetActualTime_ms() + 6000); // need to find out proper moment
+      match->StoreMatchAction(match_report::Action::yellow_card, foul.foulPlayer);
+      if (foul.foulPlayer->GetCards() == 2)
+        match->StoreMatchAction(match_report::Action::second_yellow, foul.foulPlayer);
     }
     if (foul.foulType == 3) {
       spamMessage.append(" red card!!!");
       foul.foulPlayer->GiveRedCard(match->GetActualTime_ms() + 6000); // need to find out proper moment
+      match->StoreMatchAction(match_report::Action::red_card, foul.foulPlayer);
     }
     match->SpamMessage(spamMessage);
 

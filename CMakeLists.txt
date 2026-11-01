@@ -141,3 +141,16 @@ add_custom_command(TARGET gameplayfootball POST_BUILD
    COMMAND ${CMAKE_COMMAND} -E copy_directory
       "${PROJECT_SOURCE_DIR}/data"
       "$<TARGET_FILE_DIR:gameplayfootball>")
+
+# PASS report serializer has no renderer/window dependency and can be tested headlessly.
+add_library(match_report STATIC src/utils/match_report.cpp)
+target_include_directories(match_report PUBLIC "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(match_report PUBLIC Boost::filesystem)
+target_link_libraries(gameplayfootball PRIVATE match_report)
+
+include(CTest)
+if(BUILD_TESTING)
+   add_executable(match_report_tests tests/match_report_tests.cpp)
+   target_link_libraries(match_report_tests PRIVATE match_report)
+   add_test(NAME match_report COMMAND match_report_tests)
+endif()
