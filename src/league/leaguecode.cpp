@@ -51,7 +51,7 @@ int CreateNewLeagueSave(const std::string &srcDbName, const std::string &saveNam
       errorCode = 3; // could not open database
       return errorCode;
     }
-  	
+
     std::vector<std::string> imageList;
     DatabaseResult *result = database->Query("select logo_url, kit_url from teams");
     for (unsigned int r = 0; r < result->data.size(); r++) {

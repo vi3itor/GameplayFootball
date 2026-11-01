@@ -1,0 +1,38 @@
+name: Windows x64 build
+
+on:
+  pull_request:
+  push:
+    branches: [main, mac]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up vcpkg at manifest baseline
+        shell: pwsh
+        run: |
+          $vcpkgRoot = Join-Path $env:RUNNER_TEMP 'vcpkg'
+          git clone https://github.com/microsoft/vcpkg.git $vcpkgRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $baseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          git -C $vcpkgRoot checkout $baseline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & (Join-Path $vcpkgRoot 'bootstrap-vcpkg.bat') -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+      - name: Configure Windows x64 console executable
+        run: cmake --preset windows-x64-vcpkg
+      - name: Build Windows x64 console executable
+        run: cmake --build --preset windows-x64-vcpkg --parallel 4
+      - name: Configure Windows x64 GUI executable
+        run: cmake --preset windows-x64-vcpkg -DGAMEPLAYFOOTBALL_WINDOWS_SUBSYSTEM=ON
+      - name: Build Windows x64 GUI executable
+        run: cmake --build --preset windows-x64-vcpkg --parallel 4

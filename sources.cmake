@@ -363,22 +363,6 @@ set(BLUNTED_CORE_SOURCES
         src/blunted.cpp
         )
 
-set(LIBS_SQLITE3_HEADERS
-        src/libs/sqlite3/sqlite3ext.h
-        src/libs/sqlite3/sqlite3.h
-        )
-
-set(LIBS_HEADERS
-
-        )
-
-set(ALL_LIBS_HEADERS ${LIBS_HEADERS}
-        ${LIBS_SQLITE3_HEADERS})
-
-set(LIBS_SOURCES
-        src/libs/sqlite3/sqlite3.c
-        )
-
 set(LEAGUE_HEADERS
    src/league/leaguecode.hpp
 )

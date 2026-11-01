@@ -1,0 +1,40 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "mac-arm64-vcpkg",
+      "displayName": "macOS ARM64 Release (vcpkg)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/mac-arm64-vcpkg",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "arm64-osx",
+        "CMAKE_POLICY_VERSION_MINIMUM": "3.5"
+      }
+    },
+    {
+      "name": "windows-x64-vcpkg",
+      "displayName": "Windows x64 Release (vcpkg)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows-x64-vcpkg",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CMAKE_POLICY_VERSION_MINIMUM": "3.5"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "mac-arm64-vcpkg",
+      "configurePreset": "mac-arm64-vcpkg"
+    },
+    {
+      "name": "windows-x64-vcpkg",
+      "configurePreset": "windows-x64-vcpkg",
+      "configuration": "Release"
+    }
+  ]
+}

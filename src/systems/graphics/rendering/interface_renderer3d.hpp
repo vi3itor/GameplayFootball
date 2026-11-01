@@ -301,6 +301,10 @@ namespace blunted {
       virtual void HDRCaptureOverallBrightness() = 0;
       virtual float HDRGetOverallBrightness() = 0;
 
+      // Pump platform events on the calling thread until the game quits.
+      // macOS calls this on the main thread; other platforms use the default no-op.
+      virtual void RunLoop() {}
+
       void operator()() = 0;
 
     protected:

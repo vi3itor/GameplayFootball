@@ -18,7 +18,14 @@ project(GameplayFootball)
 option(GAMEPLAYFOOTBALL_WINDOWS_SUBSYSTEM
    "Build without a console window on Windows" OFF)
 
-set (CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Keep MSVC portability failures visible on macOS and Linux too.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Werror=vla>")
+endif()
 
 if(UNIX)
    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall")
@@ -46,17 +53,20 @@ find_package(SDL2_image CONFIG REQUIRED)
 
 find_package(SDL2_ttf CONFIG REQUIRED)
 
-find_package(Boost CONFIG REQUIRED COMPONENTS system thread filesystem)
+find_package(Boost CONFIG REQUIRED COMPONENTS thread filesystem)
 
 find_package(OpenAL CONFIG REQUIRED)
+find_package(SQLite3 REQUIRED)
 
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
 add_library(gameplayfootball_dependencies INTERFACE)
 target_link_libraries(gameplayfootball_dependencies INTERFACE
-   Boost::system Boost::thread Boost::filesystem
-   SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf
-   OpenAL::OpenAL OpenGL::GL)
+   Boost::thread Boost::filesystem
+   SDL2::SDL2
+   $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>
+   $<IF:$<TARGET_EXISTS:SDL2_ttf::SDL2_ttf>,SDL2_ttf::SDL2_ttf,SDL2_ttf::SDL2_ttf-static>
+   OpenAL::OpenAL OpenGL::GL SQLite::SQLite3 ${CMAKE_DL_LIBS})
 
 # Include the sources
 include(sources.cmake)
@@ -117,6 +127,10 @@ if(WIN32 AND GAMEPLAYFOOTBALL_WINDOWS_SUBSYSTEM)
    add_executable(gameplayfootball WIN32 ${CORE_SOURCES} ${CORE_HEADERS})
 else()
    add_executable(gameplayfootball ${CORE_SOURCES} ${CORE_HEADERS})
+endif()
+# SDL2main supplies the Windows entry point and must precede SDL2.
+if(WIN32)
+   target_link_libraries(gameplayfootball PRIVATE SDL2::SDL2main)
 endif()
 target_link_libraries(gameplayfootball PRIVATE ${LIBRARIES})
 target_link_libraries(gameplayfootball PRIVATE gameplayfootball_dependencies)

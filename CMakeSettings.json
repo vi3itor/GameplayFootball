@@ -1,7 +1,7 @@
 ﻿{
     "configurations": [
         {
-            "name": "x86-Release",
+            "name": "x64-Release",
             "generator": "Ninja",
             "configurationType": "Release",
             "buildRoot": "${projectDir}\\out\\build\\${name}",
@@ -9,11 +9,11 @@
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "ctestCommandArgs": "",
-            "inheritEnvironments": [ "msvc_x86" ],
+            "inheritEnvironments": [ "msvc_x64" ],
             "clangTidyChecks": "-*,cppcoreguidelines-*"
         },
         {
-            "name": "x86-Debug",
+            "name": "x64-Debug",
             "generator": "Ninja",
             "configurationType": "Debug",
             "buildRoot": "${projectDir}\\out\\build\\${name}",
@@ -21,11 +21,11 @@
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "ctestCommandArgs": "",
-            "inheritEnvironments": [ "msvc_x86" ],
+            "inheritEnvironments": [ "msvc_x64" ],
             "clangTidyChecks": "-*,cppcoreguidelines-*"
         },
         {
-            "name": "x86-ReleaseDebugSymbol",
+            "name": "x64-ReleaseDebugSymbol",
             "generator": "Ninja",
             "configurationType": "RelWithDebInfo",
             "buildRoot": "${projectDir}\\out\\build\\${name}",
@@ -33,7 +33,7 @@
             "cmakeCommandArgs": "",
             "buildCommandArgs": "",
             "ctestCommandArgs": "",
-            "inheritEnvironments": [ "msvc_x86" ],
+            "inheritEnvironments": [ "msvc_x64" ],
             "clangTidyChecks": "-*,cppcoreguidelines-*"
         }
     ]

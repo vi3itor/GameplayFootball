@@ -1,21 +1,30 @@
 {
-  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "gameplayfootball",
   "version-string": "0.3.0",
-  "builtin-baseline": "ea1a7396b05637a53bf23c078647ecc0edee4b80",
+  "builtin-baseline": "9a5dfef5d1a0438a7d24856a85bd60f309d355e9",
   "dependencies": [
-    "boost-filesystem",
-    "boost-system",
-    "boost-thread",
-    "boost-signals2",
-    "boost-random",
+    "boost-algorithm",
     "boost-circular-buffer",
+    "boost-filesystem",
+    "boost-random",
+    "boost-signals2",
+    "boost-thread",
     "sdl2",
     {
       "name": "sdl2-image",
-      "features": ["libjpeg-turbo"]
+      "features": [
+        "libjpeg-turbo"
+      ]
     },
     "sdl2-ttf",
-    "openal-soft"
+    "openal-soft",
+    "sqlite3"
+  ],
+  "overrides": [
+    {
+      "name": "openal-soft",
+      "version": "1.23.1",
+      "port-version": 2
+    }
   ]
 }
