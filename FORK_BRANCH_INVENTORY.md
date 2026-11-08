@@ -46,9 +46,9 @@ Sorted by newest branch-tip committer timestamp. Repository numbers follow this 
 | [R026](#r026) | [5ylver/GameplayFootball](https://github.com/5ylver/GameplayFootball) | `master` | 1 | 2026-03-09 09:04:47 | 2026-03-09 09:04:52 |
 | [R027](#r027) | [Simerca/GameplayFootball](https://github.com/Simerca/GameplayFootball) | `master` | 5 | 2025-09-22 05:26:57 | 2025-09-22 05:27:41 |
 | [R028](#r028) | [Joe1992w/GameplayFootball](https://github.com/Joe1992w/GameplayFootball) | `master` | 5 | 2025-08-08 00:22:18 | 2025-08-08 00:22:22 |
-| [R029](#r029) | [jotalamp/GameplayFootball](https://github.com/jotalamp/GameplayFootball) | `master` | 1 | 2025-01-04 00:15:25 | 2025-01-04 00:15:38 |
-| [R030](#r030) | [sturdy-robot/GameplayFootball](https://github.com/sturdy-robot/GameplayFootball) | `main` | 2 | 2024-11-06 00:50:28 | 2024-12-27 10:01:48 |
-| [R031](#r031) | [CasonCaly/GameplayFootball](https://github.com/CasonCaly/GameplayFootball) | `master` | 1 | 2023-12-26 17:18:20 | 2023-12-26 17:18:25 |
+| [R029](#r029) Selective port | [jotalamp/GameplayFootball](https://github.com/jotalamp/GameplayFootball) | `master` | 1 | 2025-01-04 00:15:25 | 2025-01-04 00:15:38 |
+| [R030](#r030) ❌ Do not merge | [sturdy-robot/GameplayFootball](https://github.com/sturdy-robot/GameplayFootball) | `main` | 2 | 2024-11-06 00:50:28 | 2024-12-27 10:01:48 |
+| [R031](#r031) ❌ Do not merge | [CasonCaly/GameplayFootball](https://github.com/CasonCaly/GameplayFootball) | `master` | 1 | 2023-12-26 17:18:20 | 2023-12-26 17:18:25 |
 | [R032](#r032) ✅ Accepted | [gattilorenz/GameplayFootball](https://github.com/gattilorenz/GameplayFootball) | `master` | 4 | 2023-02-11 00:14:14 | 2023-02-11 00:14:21 |
 | [R033](#r033) ✅ Accepted / PR #5 | [tijmenkrijnen/GameplayFootball](https://github.com/tijmenkrijnen/GameplayFootball) | `master` | 4 | 2022-01-29 06:36:44 | 2022-01-29 06:36:47 |
 | [R034](#r034) 🌟 Major upstream / fork foundation | [vi3itor/GameplayFootball](https://github.com/vi3itor/GameplayFootball) | `master` | 4 | 2021-11-16 16:06:24 | 2024-01-17 00:05:23 |
@@ -518,7 +518,9 @@ Sorted by newest branch-tip committer timestamp. Repository numbers follow this 
 
 <a id="r029"></a>
 
-### R029 — jotalamp/GameplayFootball
+### R029 — jotalamp/GameplayFootball — Selective port
+
+Ported [Jotalamp](https://github.com/jotalamp)’s [quit-match wording](https://github.com/jotalamp/GameplayFootball/commit/cad5337dd8404abf99ae14ab2f7c7bb0c13cb387). Leaving an unfinished match reports it as abandoned. Skipped the scoreboard redesign, personal controller and display settings, experimental ball tuning, and test READMEs. The inherited shutdown and SQLite fixes are already in main.
 
 [Repository](https://github.com/jotalamp/GameplayFootball) · Default: `master` · Archived: false · Repository pushed: 2025-01-04 00:15:38
 
@@ -528,7 +530,9 @@ Sorted by newest branch-tip committer timestamp. Repository numbers follow this 
 
 <a id="r030"></a>
 
-### R030 — sturdy-robot/GameplayFootball
+### R030 — sturdy-robot/GameplayFootball — ❌ Do not merge
+
+Both branches point to the same commit. The older shutdown and SQLite fixes are already in main. `34ffff72` reformats headers. `3cd5cc66` also changes controller enumeration. After normalizing formatting and include order, only the two user event manager files differ in code tokens. With SDL virtual devices, supported indexes were 0 and 2. The fork's loop attempts 0 and 1, so it skips the supported controller at index 2. Opening index 2 succeeded. No code selected for porting.
 
 [Repository](https://github.com/sturdy-robot/GameplayFootball) · Default: `main` · Archived: false · Repository pushed: 2024-12-27 10:01:48
 
@@ -539,7 +543,9 @@ Sorted by newest branch-tip committer timestamp. Repository numbers follow this 
 
 <a id="r031"></a>
 
-### R031 — CasonCaly/GameplayFootball
+### R031 — CasonCaly/GameplayFootball — ❌ Do not merge
+
+The shutdown and external SQLite fixes are already represented in main. `f31954a` repeats Windows portability fixes already present and reintroduces bundled SQLite. `460e169` bypasses the menus and forces both teams to database ID 2. `548f031` mostly reformats the match code and replaces repeated collision lookups with local variables. Source review found no behavior fix to port.
 
 [Repository](https://github.com/CasonCaly/GameplayFootball) · Default: `master` · Archived: false · Repository pushed: 2023-12-26 17:18:25
 
