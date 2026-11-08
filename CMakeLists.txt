@@ -55,6 +55,7 @@ find_package(SDL2_ttf CONFIG REQUIRED)
 
 find_package(Boost CONFIG REQUIRED COMPONENTS thread filesystem)
 
+find_package(nlohmann_json 3.10 CONFIG REQUIRED)
 find_package(OpenAL CONFIG REQUIRED)
 find_package(SQLite3 REQUIRED)
 
@@ -62,7 +63,7 @@ include_directories(${PROJECT_SOURCE_DIR}/src)
 
 add_library(gameplayfootball_dependencies INTERFACE)
 target_link_libraries(gameplayfootball_dependencies INTERFACE
-   Boost::thread Boost::filesystem
+   Boost::thread Boost::filesystem nlohmann_json::nlohmann_json
    SDL2::SDL2
    $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>
    $<IF:$<TARGET_EXISTS:SDL2_ttf::SDL2_ttf>,SDL2_ttf::SDL2_ttf,SDL2_ttf::SDL2_ttf-static>
@@ -145,7 +146,7 @@ add_custom_command(TARGET gameplayfootball POST_BUILD
 # PASS report serializer has no renderer/window dependency and can be tested headlessly.
 add_library(match_report STATIC src/utils/match_report.cpp)
 target_include_directories(match_report PUBLIC "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(match_report PUBLIC Boost::filesystem)
+target_link_libraries(match_report PUBLIC Boost::filesystem nlohmann_json::nlohmann_json)
 target_link_libraries(gameplayfootball PRIVATE match_report)
 
 include(CTest)

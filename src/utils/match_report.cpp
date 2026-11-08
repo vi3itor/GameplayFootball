@@ -1,40 +1,29 @@
 // Match reporting adapted from Tijmen Krijnen's 2022 GameplayFootball PASS export.
 // Modified for optional export, correct event attribution and safe file handling.
+// Typed JSON follows Lorenzo Gatti's PASS exporter change (fc5c6bf).
 // Licensed under the Apache License, Version 2.0; see LICENSE.
 #include "match_report.hpp"
 
 #include <boost/filesystem.hpp>
-#include <boost/property_tree/json_parser.hpp>
 #include <chrono>
 #include <fstream>
-#include <sstream>
 #include <stdexcept>
 
 namespace match_report {
 namespace {
 void PutPerson(Record &record, const Person &person) {
   const std::string first = Utf8(person.first_name), last = Utf8(person.last_name);
-  record.put("c_Person", first.empty() ? last : last.empty() ? first : first + " " + last);
-  record.put("c_PersonFirstName", first);
-  record.put("c_PersonLastName", last);
-  record.put("c_PersonShort", last);
-  record.put("c_PersonSort", last.empty() ? first : first.empty() ? last : last + ", " + first);
-  record.put("c_Team", Utf8(person.team));
-  record.put("c_TeamShort", Utf8(person.team_short));
+  record["c_Person"] = first.empty() ? last : last.empty() ? first : first + " " + last;
+  record["c_PersonFirstName"] = first;
+  record["c_PersonLastName"] = last;
+  record["c_PersonShort"] = last;
+  record["c_PersonSort"] = last.empty() ? first : first.empty() ? last : last + ", " + first;
+  record["c_Team"] = Utf8(person.team);
+  record["c_TeamShort"] = Utf8(person.team_short);
 }
 
 std::string Date(std::int64_t ms) { return "/Date(" + std::to_string(ms) + ")/"; }
 
-void WriteArray(std::ostream &stream, const Records &records) {
-  stream << '[';
-  bool first = true;
-  for (const auto &record : records) {
-    if (!first) stream << ',';
-    boost::property_tree::write_json(stream, record, false);
-    first = false;
-  }
-  stream << ']';
-}
 } // namespace
 
 std::int64_t NowMs() {
@@ -92,18 +81,18 @@ Record MakeAction(Action action, const Person &person, int period,
   }
   Record record;
   PutPerson(record, person);
-  record.put("c_Action", label);
-  record.put("c_ActionMinute", time_ms / 60000);
-  record.put("c_Period", period);
-  record.put("n_ActionCode", codes[0]);
-  record.put("n_ActionCode2", codes[1]);
-  record.put("n_ActionCode3", codes[2]);
-  record.put("n_ActionSet", codes[3]);
-  record.put("n_ActionTime", time_ms);
-  record.put("n_HomeGoals", home_goals);
-  record.put("n_AwayGoals", away_goals);
-  record.put("n_HomeOrAway", person.home_or_away);
-  record.put("n_BeneficiaryHomeOrAway", beneficiary);
+  record["c_Action"] = label;
+  record["c_ActionMinute"] = std::to_string(time_ms / 60000);
+  record["c_Period"] = period;
+  record["n_ActionCode"] = codes[0];
+  record["n_ActionCode2"] = codes[1];
+  record["n_ActionCode3"] = codes[2];
+  record["n_ActionSet"] = codes[3];
+  record["n_ActionTime"] = time_ms;
+  record["n_HomeGoals"] = home_goals;
+  record["n_AwayGoals"] = away_goals;
+  record["n_HomeOrAway"] = person.home_or_away;
+  record["n_BeneficiaryHomeOrAway"] = beneficiary;
   return record;
 }
 
@@ -119,46 +108,42 @@ Record MakeLineup(const Person &person, Role role, bool sent_off, bool starter) 
     case Role::attacker: name = "Aanvaller"; short_name = "A"; code = 8; break;
     case Role::unknown: break;
   }
-  record.put("b_RedCard", sent_off);
-  record.put("b_Starter", starter);
-  record.put("c_Function", name);
-  record.put("c_FunctionShort", short_name);
-  record.put("n_FunctionCode", code);
+  record["b_RedCard"] = sent_off;
+  record["b_Starter"] = starter;
+  record["c_Function"] = name;
+  record["c_FunctionShort"] = short_name;
+  record["n_FunctionCode"] = code;
   return record;
 }
 
 Record MakeInfo(const Info &info) {
   Record record;
-  record.put("c_HomeTeam", Utf8(info.home_team));
-  record.put("c_HomeTeamShort", Utf8(info.home_short));
-  record.put("c_AwayTeam", Utf8(info.away_team));
-  record.put("c_AwayTeamShort", Utf8(info.away_short));
+  record["c_HomeTeam"] = Utf8(info.home_team);
+  record["c_HomeTeamShort"] = Utf8(info.home_short);
+  record["c_AwayTeam"] = Utf8(info.away_team);
+  record["c_AwayTeamShort"] = Utf8(info.away_short);
   std::string score = std::to_string(info.goals[0]) + "-" + std::to_string(info.goals[1]);
   if (info.halftime_known) score += " (" + std::to_string(info.halftime_goals[0]) + "-" +
     std::to_string(info.halftime_goals[1]) + ")";
-  record.put("c_Score", score);
-  record.put("b_HalfTimeKnown", info.halftime_known);
-  record.put("c_Status", info.completed ? "completed" : "abandoned");
-  record.put("d_Date", Date(info.end_ms));
-  record.put("d_DateLocal", Date(info.end_ms));
-  record.put("d_MatchStartTime", Date(info.start_ms));
-  record.put("d_MatchStartTimeLocal", Date(info.start_ms));
-  record.put("n_HomeGoals", info.goals[0]);
-  record.put("n_AwayGoals", info.goals[1]);
-  record.put("n_Spectators", 0);
+  record["c_Score"] = score;
+  record["b_HalfTimeKnown"] = info.halftime_known;
+  record["c_Status"] = info.completed ? "completed" : "abandoned";
+  record["d_Date"] = Date(info.end_ms);
+  record["d_DateLocal"] = Date(info.end_ms);
+  record["d_MatchStartTime"] = Date(info.start_ms);
+  record["d_MatchStartTimeLocal"] = Date(info.start_ms);
+  record["n_HomeGoals"] = info.goals[0];
+  record["n_AwayGoals"] = info.goals[1];
+  record["n_Spectators"] = 0;
   return record;
 }
 
 std::string Serialize(const Records &actions, const Record &info, const Records &lineup) {
-  std::ostringstream stream;
-  stream << "{\"MatchActions\":";
-  WriteArray(stream, actions);
-  stream << ",\"MatchInfo\":";
-  WriteArray(stream, Records{info});
-  stream << ",\"MatchLineup\":";
-  WriteArray(stream, lineup);
-  stream << "}\n";
-  return stream.str();
+  return Record{
+    {"MatchActions", actions},
+    {"MatchInfo", Record::array({info})},
+    {"MatchLineup", lineup}
+  }.dump() + '\n';
 }
 
 std::string Write(const std::string &directory, std::int64_t start_ms, const std::string &json) {

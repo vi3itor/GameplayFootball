@@ -4,7 +4,7 @@
 #ifndef GAMEPLAYFOOTBALL_MATCH_REPORT_HPP
 #define GAMEPLAYFOOTBALL_MATCH_REPORT_HPP
 
-#include <boost/property_tree/ptree.hpp>
+#include <nlohmann/json.hpp>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -33,7 +33,7 @@ struct Info {
   std::int64_t start_ms = 0, end_ms = 0;
 };
 
-using Record = boost::property_tree::ptree;
+using Record = nlohmann::json;
 using Records = std::vector<Record>;
 
 std::int64_t NowMs();
@@ -44,7 +44,6 @@ Record MakeAction(Action action, const Person &person, int period,
                   int beneficiary = -1);
 Record MakeLineup(const Person &person, Role role, bool sent_off, bool starter);
 Record MakeInfo(const Info &info);
-// PASS uses string scalars. Write array delimiters explicitly, including [].
 std::string Serialize(const Records &actions, const Record &info, const Records &lineup);
 // Creates a unique file; throws on failure. Callers must not let export stop cleanup.
 std::string Write(const std::string &directory, std::int64_t start_ms,

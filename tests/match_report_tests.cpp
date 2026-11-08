@@ -1,23 +1,14 @@
 // Regression coverage for the adapted Tijmen Krijnen PASS report exporter.
 #include "utils/match_report.hpp"
 #include <boost/filesystem.hpp>
-#include <boost/property_tree/json_parser.hpp>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <sstream>
 #include <stdexcept>
 
 namespace {
 void Check(bool condition, const char *message) {
   if (!condition) throw std::runtime_error(message);
-}
-
-match_report::Record Parse(const std::string &json) {
-  std::istringstream stream(json);
-  match_report::Record record;
-  boost::property_tree::read_json(stream, record);
-  return record;
 }
 
 std::string Read(const boost::filesystem::path &path) {
@@ -43,48 +34,48 @@ std::string TestRecords() {
   actions.push_back(MakeAction(Action::goal, home, 1, 60000, 1, 0, 0));
   actions.push_back(MakeAction(Action::own_goal, away, 1, 120000, 2, 0, 0));
   actions.push_back(MakeAction(Action::offside, away, 1, 130000, 2, 0, 0));
-  Check(actions[1].get<int>("n_ActionCode") == 4, "goal code changed");
-  Check(actions[2].get<int>("n_ActionCode") == 64, "own-goal code changed");
-  Check(actions[2].get<int>("n_HomeOrAway") == 1 &&
-        actions[2].get<int>("n_BeneficiaryHomeOrAway") == 0, "own-goal attribution lost");
-  Check(actions[3].get<std::string>("c_Team") == "Away" &&
-        actions[3].get<int>("n_HomeOrAway") == 1, "offside actor assigned opposing team");
-  Check(actions[3].get<int>("n_BeneficiaryHomeOrAway") == 0, "offside beneficiary lost");
+  Check(actions[1].at("n_ActionCode").get<int>() == 4, "goal code changed");
+  Check(actions[2].at("n_ActionCode").get<int>() == 64, "own-goal code changed");
+  Check(actions[2].at("n_HomeOrAway").get<int>() == 1 &&
+        actions[2].at("n_BeneficiaryHomeOrAway").get<int>() == 0, "own-goal attribution lost");
+  Check(actions[3].at("c_Team").get<std::string>() == "Away" &&
+        actions[3].at("n_HomeOrAway").get<int>() == 1, "offside actor assigned opposing team");
+  Check(actions[3].at("n_BeneficiaryHomeOrAway").get<int>() == 0, "offside beneficiary lost");
   Person unknown;
   unknown.team = "Home";
   unknown.home_or_away = 0;
   const auto unknown_goal = MakeAction(Action::goal, unknown, 1, 0, 1, 0, 0);
-  Check(unknown_goal.get<std::string>("c_Person").empty() &&
-        unknown_goal.get<std::string>("c_Team") == "Home", "unknown scorer/team lost");
+  Check(unknown_goal.at("c_Person").get<std::string>().empty() &&
+        unknown_goal.at("c_Team").get<std::string>() == "Home", "unknown scorer/team lost");
 
   auto red = MakeAction(Action::red_card, home, 2, 3000000, 2, 0);
   auto second = MakeAction(Action::second_yellow, home, 2, 3000010, 2, 0);
-  Check(red.get<int>("n_ActionCode") == 8192 && second.get<int>("n_ActionCode") == 4096,
+  Check(red.at("n_ActionCode").get<int>() == 8192 && second.at("n_ActionCode").get<int>() == 4096,
         "direct red and second yellow must be distinct");
-  Check(red.get<std::string>("c_Action") == "Rood", "direct red mislabeled");
-  Check(MakeAction(Action::yellow_card, home, 1, 0, 0, 0).get<int>("n_ActionCode") == 2048,
+  Check(red.at("c_Action").get<std::string>() == "Rood", "direct red mislabeled");
+  Check(MakeAction(Action::yellow_card, home, 1, 0, 0, 0).at("n_ActionCode").get<int>() == 2048,
         "yellow-card code changed");
   const Action restarts[] = {Action::goal_kick, Action::free_kick, Action::corner,
     Action::penalty, Action::throw_in};
   const int restart_codes[] = {2048, 256, 128, 64, 512};
   for (int i = 0; i < 5; ++i) {
     auto record = MakeAction(restarts[i], home, 1, 0, 0, 0);
-    Check(record.get<int>("n_ActionCode3") == restart_codes[i], "set-piece code changed");
+    Check(record.at("n_ActionCode3").get<int>() == restart_codes[i], "set-piece code changed");
   }
-  Check(MakeAction(Action::foul_penalty, home, 1, 0, 0, 0).get<int>("n_ActionSet") == 12,
+  Check(MakeAction(Action::foul_penalty, home, 1, 0, 0, 0).at("n_ActionSet").get<int>() == 12,
         "foul action set changed");
-  Check(MakeAction(Action::foul_free_kick, home, 1, 0, 0, 0).get<int>("n_ActionCode") == 2097152,
+  Check(MakeAction(Action::foul_free_kick, home, 1, 0, 0, 0).at("n_ActionCode").get<int>() == 2097152,
         "free-kick foul code changed");
 
   Records lineup{MakeLineup(home, Role::goalkeeper, true, true),
     MakeLineup(away, Role::unknown, false, false)};
-  Check(lineup[0].get<int>("n_FunctionCode") == 1 &&
-        lineup[0].get<bool>("b_RedCard"), "dismissed starter missing from lineup");
-  Check(lineup[1].get<int>("n_FunctionCode") == 0 &&
-        !lineup[1].get<bool>("b_Starter"), "bench/unknown role must be defined");
-  Check(MakeLineup(home, Role::defender, false, true).get<int>("n_FunctionCode") == 2 &&
-        MakeLineup(home, Role::midfielder, false, true).get<int>("n_FunctionCode") == 4 &&
-        MakeLineup(home, Role::attacker, false, true).get<int>("n_FunctionCode") == 8,
+  Check(lineup[0].at("n_FunctionCode").get<int>() == 1 &&
+        lineup[0].at("b_RedCard").get<bool>(), "dismissed starter missing from lineup");
+  Check(lineup[1].at("n_FunctionCode").get<int>() == 0 &&
+        !lineup[1].at("b_Starter").get<bool>(), "bench/unknown role must be defined");
+  Check(MakeLineup(home, Role::defender, false, true).at("n_FunctionCode").get<int>() == 2 &&
+        MakeLineup(home, Role::midfielder, false, true).at("n_FunctionCode").get<int>() == 4 &&
+        MakeLineup(home, Role::attacker, false, true).at("n_FunctionCode").get<int>() == 8,
         "PASS role codes changed");
 
   Info info;
@@ -94,28 +85,41 @@ std::string TestRecords() {
   info.start_ms = 1700000000123;
   info.end_ms = 1700000300123;
   auto abandoned = MakeInfo(info);
-  Check(abandoned.get<std::string>("c_Status") == "abandoned" &&
-        !abandoned.get<bool>("b_HalfTimeKnown"), "abandoned match presented as completed");
-  Check(abandoned.get<std::string>("c_Score") == "2-0", "unknown halftime fabricated");
-  const auto empty = Serialize({}, abandoned, {});
-  Check(empty.find("\"MatchActions\":[]") != std::string::npos &&
-        empty.find("\"MatchLineup\":[]") != std::string::npos, "empty collections must be JSON arrays");
-  Parse(empty);
+  Check(abandoned.at("c_Status").get<std::string>() == "abandoned" &&
+        !abandoned.at("b_HalfTimeKnown").get<bool>(), "abandoned match presented as completed");
+  Check(abandoned.at("c_Score").get<std::string>() == "2-0", "unknown halftime fabricated");
+  const auto empty = Record::parse(Serialize({}, abandoned, {}));
+  Check(empty.at("MatchActions").is_array() && empty.at("MatchActions").empty() &&
+        empty.at("MatchLineup").is_array() && empty.at("MatchLineup").empty(),
+        "empty collections must be JSON arrays");
+  const auto &partial_info = empty.at("MatchInfo").front();
+  Check(partial_info.at("b_HalfTimeKnown").is_boolean() &&
+        partial_info.at("b_HalfTimeKnown") == false, "unknown halftime must export as false");
   info.completed = true;
   info.halftime_known = true;
   info.halftime_goals = {{1, 0}};
   const auto json = Serialize(actions, MakeInfo(info), lineup);
-  const auto root = Parse(json);
-  Check(root.get_child("MatchActions").size() == 4 && root.get_child("MatchLineup").size() == 2,
+  const auto root = Record::parse(json);
+  Check(root.at("MatchActions").size() == 4 && root.at("MatchLineup").size() == 2,
         "records lost during JSON serialization");
-  const auto &read_info = root.get_child("MatchInfo").front().second;
-  Check(read_info.get<std::string>("c_Score") == "2-0 (1-0)", "halftime score lost");
-  Check(read_info.get<std::string>("d_MatchStartTime") == "/Date(1700000000123)/",
+  const auto &read_info = root.at("MatchInfo").front();
+  Check(read_info.at("c_Score").get<std::string>() == "2-0 (1-0)", "halftime score lost");
+  Check(read_info.at("d_MatchStartTime").get<std::string>() == "/Date(1700000000123)/",
         "timestamp truncated on Windows");
-  Check(root.get_child("MatchActions").front().second.get<std::string>("c_PersonFirstName") == home.first_name,
+  Check(root.at("MatchActions").front().at("c_PersonFirstName").get<std::string>() == home.first_name,
         "JSON escaping corrupted name");
-  Check(json.find("\"n_HomeGoals\":\"2\"") != std::string::npos,
-        "PASS string scalar compatibility changed");
+  const auto &kickoff = root.at("MatchActions").front();
+  Check(kickoff.at("n_ActionTime").is_number_integer() && kickoff.at("n_ActionTime") == 0 &&
+        kickoff.at("c_Period").is_number_integer() && kickoff.at("c_Period") == 1 &&
+        kickoff.at("c_ActionMinute").is_string() && kickoff.at("c_ActionMinute") == "0",
+        "PASS action field types changed");
+  Check(read_info.at("n_HomeGoals").is_number_integer() && read_info.at("n_HomeGoals") == 2 &&
+        read_info.at("b_HalfTimeKnown").is_boolean() && read_info.at("b_HalfTimeKnown") == true,
+        "PASS score or halftime field types changed");
+  const auto &starter = root.at("MatchLineup").front();
+  Check(starter.at("b_RedCard").is_boolean() && starter.at("b_RedCard") == true &&
+        starter.at("b_Starter").is_boolean() && starter.at("b_Starter") == true,
+        "PASS lineup flags must be JSON booleans");
   return json;
 }
 
@@ -158,7 +162,7 @@ int main(int argc, char **argv) {
     if (argc == 3 && std::string(argv[1]) == "--example") {
       std::ofstream stream(argv[2], std::ios::binary);
       stream.exceptions(std::ios::badbit | std::ios::failbit);
-      boost::property_tree::write_json(stream, Parse(example), true);
+      stream << match_report::Record::parse(example).dump(4) << '\n';
       stream.close();
     }
     std::cout << "Match report regression checks passed\n";
